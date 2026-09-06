@@ -1,0 +1,9 @@
+# Credenciales locales: subir solamente users.example.csv.
+/data/users.csv
+/jmeter.log
+
+# Artefactos pesados generados por JMeter.
+/results/*
+!/results/.gitkeep
+/reports/*
+!/reports/.gitkeep
