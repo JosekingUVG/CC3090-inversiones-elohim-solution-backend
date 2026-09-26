@@ -53,12 +53,28 @@ public class ReservacionesV1Controller : V1ControllerBase
     [HttpPatch("{id}/estado")]
     public async Task<IActionResult> CambiarEstado(string id, [FromBody] CambiarEstadoReservacionRequest request, CancellationToken cancellationToken)
     {
-        if (GetTenantId() is null || !EsStaff())
+        var userId = GetUserId();
+        if (string.IsNullOrWhiteSpace(userId) || GetTenantId() is null || !EsStaff())
         {
             return Forbid();
         }
 
-        var reservacion = await _platformService.CambiarEstadoReservacionAsync(id, request, cancellationToken);
-        return reservacion is null ? NotFound(new { error = "Reservación no encontrada." }) : Ok(reservacion);
+        try
+        {
+            var reservacion = await _platformService.CambiarEstadoReservacionAsync(id, request, userId, cancellationToken);
+            return reservacion is null ? NotFound(new { error = "Reservación no encontrada." }) : Ok(reservacion);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 }

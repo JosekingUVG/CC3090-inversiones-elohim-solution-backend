@@ -1,5 +1,7 @@
 using ElohimShop.Application.Platform;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
 
 namespace ElohimShop.API.Controllers;
 
@@ -25,6 +27,31 @@ public class ProductosV1Controller : V1ControllerBase
         var productos = await _platformService.ListarProductosAsync(cancellationToken);
         return Ok(productos);
     }
+
+    [HttpGet("categorias")]
+    public async Task<IActionResult> ObtenerCategorias(
+        [FromServices] ElohimShop.Infrastructure.Persistence.PlatformDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        if (GetTenantId() is null)
+        {
+            return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
+        }
+
+        var categorias = await dbContext.Categorias
+            .AsNoTracking()
+            .OrderBy(c => c.Nombre)
+            .Select(c => new
+            {
+                id = c.Id,
+                nombreCategoria = c.Nombre,
+                descripcion = c.Descripcion
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(categorias);
+    }
+
 
     [HttpGet("{id}")]
     public async Task<IActionResult> Obtener(string id, CancellationToken cancellationToken)

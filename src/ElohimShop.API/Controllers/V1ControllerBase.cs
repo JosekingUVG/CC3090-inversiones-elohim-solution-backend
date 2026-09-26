@@ -6,11 +6,23 @@ namespace ElohimShop.API.Controllers;
 
 public abstract class V1ControllerBase : ControllerBase
 {
+    protected ElohimShop.Application.Common.TenantContext? GetTenantContext()
+    {
+        if (HttpContext.Items.TryGetValue("TenantContext", out var contextObj) &&
+            contextObj is ElohimShop.Application.Common.TenantContext tenantContext)
+        {
+            return tenantContext;
+        }
+
+        return null;
+    }
+
     protected string? GetTenantId()
     {
-        if (Request.Headers.TryGetValue("X-Tenant-ID", out var tenantId) && !string.IsNullOrWhiteSpace(tenantId))
+        var tenantContext = GetTenantContext();
+        if (tenantContext is not null)
         {
-            return tenantId.ToString();
+            return tenantContext.TenantId;
         }
 
         if (HttpContext.Items.TryGetValue("ResolvedTenantId", out var resolvedTenantIdObj) &&
@@ -20,8 +32,14 @@ public abstract class V1ControllerBase : ControllerBase
             return resolvedTenantId;
         }
 
+        if (Request.Headers.TryGetValue("X-Tenant-ID", out var tenantIdHeader) && !string.IsNullOrWhiteSpace(tenantIdHeader))
+        {
+            return tenantIdHeader.ToString().Trim();
+        }
+
         return User.FindFirstValue("tienda_id");
     }
+
 
     protected string? GetUserId()
     {

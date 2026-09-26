@@ -266,7 +266,7 @@ public interface IPlatformService
     Task<ReservacionDto> CrearReservacionAsync(string usuarioId, CrearReservacionRequest request, CancellationToken cancellationToken);
     Task<IReadOnlyList<ReservacionDto>> ObtenerMisComprasAsync(string usuarioId, CancellationToken cancellationToken);
     Task<IReadOnlyList<ReservacionDto>> ObtenerReservacionesStaffAsync(CancellationToken cancellationToken);
-    Task<ReservacionDto?> CambiarEstadoReservacionAsync(string id, CambiarEstadoReservacionRequest request, CancellationToken cancellationToken);
+    Task<ReservacionDto?> CambiarEstadoReservacionAsync(string id, CambiarEstadoReservacionRequest request, string actingUserId, CancellationToken cancellationToken);
 
     Task<SqlExecutionResult> EjecutarRawReporteAsync(EjecutarRawReporteRequest request, CancellationToken cancellationToken);
     Task<ReportePersonalizadoDto> GuardarReporteAsync(GuardarReporteRequest request, string? creadoPor, CancellationToken cancellationToken);

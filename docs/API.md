@@ -1,255 +1,147 @@
-# Documentación de la API
+# Documentación de la API Backend
 
-La API del sistema está construida sobre ASP.NET Core utilizando arquitectura REST. Los endpoints están organizados bajo prefijos de ruta de versión (`/api/v1`) y de administración (`/api/admin`).
-
-Todos los controladores (excepto los de catálogo público) requieren el paso del identificador del tenant para resolver el contexto de la tienda (mediante cookies o las cabeceras `X-Tenant-ID` o `X-Tenant-Slug`).
+La API del sistema está construida sobre ASP.NET Core 10 siguiendo una arquitectura REST unificada bajo el prefijo `/api/v1/`.
 
 ---
 
-## 1. Controladores por Módulo
+## 🔐 Modelo de Autenticación OAuth y Aislamiento de Usuarios
 
-### Autenticación (`AuthController`)
-Prefijo: `/api/v1/auth` | Acceso: Público / Autenticado
+La autenticación de la plataforma opera exclusivamente mediante **OAuth 2.0 / Google OpenID Connect y JWT Token Bearer**, manteniendo una separación estricta de dominios de usuario:
 
-- `POST /login` - Iniciar sesión con credenciales
-- `POST /register` - Registrar nuevo usuario o staff
-- `POST /logout` - Cerrar sesión
-- `POST /forgot-password` - Solicitar recuperación de contraseña
-- `POST /change-password` - Cambiar contraseña existente
+### 1. Usuarios del Portal de Administración (Staff / Admins)
+- **Ámbito:** Acceso al Portal de Administración central y funciones de gestión de tienda.
+- **Autenticación:** OAuth (Google OAuth / Credenciales OAuth de Plataforma).
+- **Roles:** `superadmin`, `administrador`, `cajero`, `logistica`.
+- **Alcance:** Acceso delimitado por permisos y asignación a tiendas/plataforma.
 
-### Administración de Usuarios (`AdminUsuariosController`)
-Prefijo: `/api/admin/usuarios` | Acceso: Admin / SuperAdmin
-
-- `GET /` - Listar usuarios de la tienda
-- `POST /` - Crear nuevo usuario o staff
-- `PUT /{id}` - Editar información de usuario
-- `POST /{id}/reset-password` - Generar códigos de recuperación
-
-### Productos y Catálogo (`ProductosV1Controller`)
-Prefijo: `/api/v1/productos` | Acceso: Público (lectura), Admin (escritura)
-
-- `GET /` - Listar productos con paginación y filtros
-- `POST /` - Crear producto (Admin)
-- `PUT /{id}` - Editar producto (Admin)
-- `DELETE /{id}` - Eliminar producto soft-delete (Admin)
-
-### Sucursales (`SucursalesV1Controller`)
-Prefijo: `/api/v1/sucursales` | Acceso: Admin
-
-- `GET /` - Listar sucursales de la tienda
-- `POST /` - Crear sucursal
-- `PUT /{id}` - Editar información de sucursal
-- `DELETE /{id}` - Eliminar sucursal
-
-### Inventarios (`InventariosController`)
-Prefijo: `/api/v1/inventarios` | Acceso: Admin
-
-- `GET /sucursal/{sucursalId}` - Ver stock por sucursal
-- `PUT /` - Actualizar cantidad de stock
-- `GET /bajo-stock` - Productos con stock bajo
-
-### Carrito (`CarritoV1Controller`)
-Prefijo: `/api/v1/carrito` | Acceso: Cliente Autenticado
-
-- `GET /` - Ver carrito del cliente
-- `POST /` - Agregar producto al carrito
-- `PUT /{itemId}` - Actualizar cantidad de item
-- `DELETE /{itemId}` - Remover producto del carrito
-
-### Reservaciones y Compras (`ReservacionesV1Controller`)
-Prefijo: `/api/v1/reservaciones` | Acceso: Admin / Cliente
-
-- `GET /` - Listar todas las reservaciones (Admin)
-- `GET /mis-reservaciones` - Historial de compras del cliente
-- `POST /` - Crear nueva reservación (Cliente)
-- `PUT /{id}/despacho` - Cambiar estado de despacho (Admin)
-
-### Pagos (`PagosController`)
-Prefijo: `/api/pagos` | Acceso: Cliente / Público (webhooks)
-
-- `POST /crear-intento` - Crear intent de pago Stripe (Cliente)
-- `POST /webhook` - Recibir eventos de Stripe (Público - asíncrono)
-
-### Métodos de Pago (`MetodoPagoController`)
-Prefijo: `/api/metodoPago` | Acceso: Cliente Autenticado
-
-- `GET /` - Listar tarjetas guardadas
-- `POST /` - Guardar nueva tarjeta (tokenizada en Stripe)
-- `DELETE /{id}` - Eliminar tarjeta guardada
-
-### Reportes y Dashboard (`ReportesV1Controller`)
-Prefijo: `/api/v1/reportes` | Acceso: Admin
-
-- `GET /dashboard` - Métricas consolidadas de la tienda
-- `POST /personalizados` - Guardar plantilla de reporte SQL
-- `GET /personalizados/{id}/ejecutar` - Ejecutar reporte personalizado
-- `GET /ventas/exportar` - Descargar reporte en Excel
-
-### Configuración Visual (`TiendasController`)
-Prefijo: `/api/v1/tiendas` | Acceso: Público (lectura), Admin (escritura)
-
-- `GET /configuracion-visual` - Obtener configuración del constructor
-- `PUT /configuracion-visual` - Guardar cambios de diseño (Admin)
-- `GET /informacion` - Datos básicos de la tienda
-
-### Media y Archivos (`MediaController`)
-Prefijo: `/api/v1/media` | Acceso: Admin
-
-- `POST /upload` - Subir archivo a Cloudinary
-- `DELETE /{id}` - Eliminar archivo (Cloudinary)
-
-### Catálogo Público (`CatalogController`)
-Prefijo: `/api/` | Acceso: Público
-
-- `GET /categorias` - Listar categorías disponibles
-- `GET /productos` - Consultar catálogo (sin autenticación)
+### 2. Usuarios de una Tienda en Específico (Clientes de Tenant)
+- **Ámbito:** Acceso exclusivo al storefront y catálogo de un tenant en particular.
+- **Autenticación:** OAuth configurado para el contexto del tenant especificando el header o parámetro de tienda (`X-Tenant-ID` / `X-Tenant-Slug`).
+- **Aislamiento Estricto:**
+  > [!IMPORTANT]
+  > Que un usuario esté registrado y autenticado en el Tenant A **NO significa que esté registrado para ese Tenant B ni que tenga acceso al Portal de Administración**.
+  > Cada tienda (tenant) constituye un límite de autenticación cerrado e independiente para los clientes.
 
 ---
 
-## 2. Detalle de Endpoints y Operaciones
+## 🌐 Headers Requeridos y Validación Multi-Tenant
 
-### Auth (Sesiones y Registro) - `AuthController`
+Para todas las peticiones a la API:
+
+| Header | Requerido | Descripción |
+|--------|-----------|-------------|
+| `Authorization` | En endpoints autenticados | `Bearer <JWT_TOKEN_OAUTH>` |
+| `X-Tenant-ID` | Sí (o `X-Tenant-Slug`) | GUID único del Tenant |
+| `X-Tenant-Slug` | Alternativa a `X-Tenant-ID` | Slug legible de la tienda |
+
+> [!SECURITY]
+> **Cross-Tenant Guard:** El middleware `TenantValidationMiddleware` valida automáticamente que el `tienda_id` del token OAuth/JWT coincida con el Tenant de la petición. Si no coinciden, la petición es denegada con `403 Forbidden` (excepto para usuarios con rol `superadmin`).
+
+---
+
+## 📋 Controladores y Endpoints Unificados (`/api/v1`)
+
+### 1. Autenticación (`AuthController`)
 Prefijo: `/api/v1/auth`
 
-* **`POST /login`** (Público)
-  * **Payload**: `{ "correo": "string", "contrasena": "string" }`
-  * **Respuesta (200 OK)**:
-    ```json
-    {
-      "usuarioId": "string",
-      "correo": "string",
-      "nombre": "string",
-      "tipoUsuario": "cliente|staff",
-      "rol": "cajero|administrador|superadmin|null",
-      "token": "jwt_token_string",
-      "expiraEn": "ISO-8601-DateTime"
-    }
-    ```
-* **`POST /register`** (Público / Admin para Staff)
-  * **Payload**: `{ "correo": "string", "nombre": "string", "contrasena": "string", "tipoUsuario": "cliente|administrador", "rol": "cajero|administrador|null", "tipoCliente": "particular|mayorista|minorista" }`
-  * **Respuesta (200 OK)**: Mismo formato de `/login`.
-* **`POST /logout`** (Autenticado)
-  * **Headers**: `Authorization: Bearer <token>`
-  * **Respuesta (200 OK)**: `{ "mensaje": "Sesión cerrada correctamente" }`
-* **`POST /forgot-password`** (Público)
-  * **Payload**: `{ "correo": "string" }`
-  * **Respuesta (200 OK)**: Envia el código OTP SMTP configurado de forma autónoma.
-* **`POST /change-password`** (Autenticado)
-  * **Payload**: `{ "contrasenaActual": "string", "nuevaContrasena": "string" }`
-  * **Respuesta (200 OK)**: `{ "mensaje": "Contraseña cambiada con éxito" }`
+- `POST /login` — Autenticación OAuth de usuario (retorna JWT y claims de ámbito).
+- `POST /google` — Autenticación con Google OAuth ID Token (`tipoUsuario`: `administrador` | `cliente`).
+- `POST /register` — Registro de cliente para tenant específico o staff (Admin).
+- `POST /logout` — Invalidation del token en sesión activa.
+- `POST /forgot-password` — Solicitud de código de recuperación por correo SMTP del tenant.
+- `POST /recover-with-code` — Recuperación de contraseña mediante código de validación.
+- `POST /change-password` — Cambio de contraseña (requiere token autenticado).
 
----
+### 2. Usuarios de Plataforma y Administración (`UsuariosV1Controller`)
+Prefijo: `/api/v1/usuarios` | Acceso: Admin / SuperAdmin
 
-### Administración de Usuarios - `AdminUsuariosController`
-Prefijo: `/api/admin/usuarios` (Solo accesible por Staff con rol `administrador` o `superadmin`)
+- `GET /` — Listar usuarios del tenant actual.
+- `POST /invitar` — Invitar / crear usuario staff para el tenant.
+- `PUT /{id}/rol` — Cambiar rol o permisos de usuario.
+- `PUT /{id}/estado` — Activar o desactivar usuario.
+- `DELETE /{id}` — Eliminar usuario.
+- `POST /{id}/reset-password` — Generar 8 códigos de recuperación alternativos offline.
 
-* **`GET /`**
-  * **Respuesta (200 OK)**: Retorna lista de usuarios pertenecientes al tenant.
-* **`POST /`**
-  * **Payload**: `{ "nombre": "string", "email": "string", "tipoUsuario": "staff|cliente", "rolStaff": "cajero|admin", "sucursalId": "string|null" }`
-  * **Respuesta (201 Created)**: Retorna el objeto del usuario creado.
-* **`PUT /{id}`**
-  * **Payload**: `{ "nombre": "string", "rolStaff": "string", "sucursalId": "string|null", "estado": boolean }`
-  * **Respuesta (200 OK)**: Usuario actualizado.
-* **`POST /{id}/reset-password`**
-  * **Respuesta (200 OK)**: Genera 8 códigos de recuperación alternativos para restablecer la contraseña offline.
-    ```json
-    {
-      "usuarioId": "string",
-      "correo": "string",
-      "nombre": "string",
-      "codigos": ["code1", "code2", "code3", "..."]
-    }
-    ```
+### 3. Productos y Catálogo (`ProductosV1Controller`)
+Prefijo: `/api/v1/productos` | Acceso: Público (lectura), Admin (escritura)
 
----
+- `GET /` — Listar productos del tenant (paginación, filtros).
+- `GET /{id}` — Obtener detalle de un producto específico.
+- `GET /categorias` — Listar categorías de productos del tenant.
+- `POST /` — Crear producto (Admin).
+- `POST /bulk` — Carga masiva de productos (Admin).
+- `PUT /{id}` — Actualizar producto (Admin).
+- `DELETE /{id}` — Eliminar producto (Admin).
 
-### Productos y Categorías - `ProductosV1Controller`
-Prefijo: `/api/v1/productos` (Operaciones de escritura reservadas para Staff)
+### 4. Sucursales (`SucursalesV1Controller`)
+Prefijo: `/api/v1/sucursales` | Acceso: Público (lectura), Admin (escritura)
 
-* **`GET /`** (Público)
-  * **Parámetros**: `page` (int), `limit` (int), `categoriaId` (string), `buscar` (string)
-  * **Respuesta (200 OK)**: Lista paginada de productos filtrados por el tenant actual.
-* **`POST /`** (Admin)
-  * **Payload**: `{ "nombre": "string", "descripcion": "string", "sku": "string", "precioMayoreo": decimal, "precioDetalle": decimal, "imagenUrl": "string", "categoriaId": "string" }`
-  * **Respuesta (201 Created)**: Producto creado.
-* **`PUT /{id}`** (Admin)
-  * **Payload**: Estructura de actualización del producto.
-  * **Respuesta (200 OK)**: Producto modificado.
-* **`DELETE /{id}`** (Admin)
-  * **Respuesta (200 OK)**: Soft-delete (marca columna `eliminado = true`).
+- `GET /` — Listar sucursales activas del tenant.
+- `POST /` — Crear nueva sucursal (Admin).
+- `PUT /{id}` — Actualizar sucursal (Admin).
+- `DELETE /{id}` — Eliminar sucursal (Admin).
 
----
+### 5. Inventarios (`InventariosController`)
+Prefijo: `/api/v1/inventarios` | Acceso: Staff / Admin
 
-### Reservaciones y Compras - `ReservacionesV1Controller`
-Prefijo: `/api/v1/reservaciones`
+- `GET /sucursal/{sucursalId}` — Consultar stock por sucursal.
+- `PUT /` — Ajuste de stock de producto en sucursal.
+- `GET /bajo-stock` — Listado de alertas de stock crítico.
 
-* **`GET /`** (Staff)
-  * **Respuesta (200 OK)**: Lista completa de reservaciones de la tienda.
-* **`GET /mis-reservaciones`** (Cliente)
-  * **Respuesta (200 OK)**: Lista de reservaciones asociadas al cliente logueado.
-* **`POST /`** (Cliente)
-  * **Payload**:
-    ```json
-    {
-      "sucursalId": "string",
-      "detalles": [
-        { "productoId": "string", "cantidad": 5 }
-      ]
-    }
-    ```
-  * **Respuesta (201 Created)**: Reservación creada con estado de pago `"pendiente"`.
-* **`PUT /{id}/despacho`** (Staff)
-  * **Payload**: `{ "estadoDespacho": "procesando|completado|cancelado" }`
-  * **Respuesta (200 OK)**: Estado actualizado.
+### 6. Carrito de Compras (`CarritoV1Controller`)
+Prefijo: `/api/v1/carrito` | Acceso: Cliente Autenticado del Tenant
 
----
+- `GET /` — Obtener elementos del carrito del cliente.
+- `POST /articulos` — Agregar artículo al carrito.
+- `PUT /articulos/{id}` — Actualizar cantidad de un artículo.
+- `DELETE /articulos/{id}` — Eliminar artículo del carrito.
 
-### Inventarios - `InventariosController`
-Prefijo: `/api/v1/inventarios` (Solo accesible por Staff)
+### 7. Reservaciones y Compras (`ReservacionesV1Controller`)
+Prefijo: `/api/v1/reservaciones` | Acceso: Cliente / Staff
 
-* **`GET /sucursal/{sucursalId}`**
-  * **Respuesta (200 OK)**: Existencias de todos los productos en la sucursal indicada.
-* **`PUT /`**
-  * **Payload**: `{ "sucursalId": "string", "productoId": "string", "stock": 50 }`
-  * **Respuesta (200 OK)**: Existencia de stock actualizada en el inventario físico de la sucursal.
+- `POST /` — Crear reservación / compra (Cliente).
+- `GET /mis-compras` — Consultar historial de compras del cliente autenticado.
+- `GET /control-staff` — Listar reservaciones de la tienda para gestión (Staff).
+- `PATCH /{id}/estado` — Cambiar estado de pago/despacho (Staff).
 
----
+### 8. Pasarela de Pagos Stripe (`PagosController`)
+Prefijo: `/api/v1/pagos` | Acceso: Cliente / Webhook Público
 
-### Dashboard y Reportes - `ReportesV1Controller`
-Prefijo: `/api/v1/reportes` (Solo accesible por Staff con rol `administrador` o superior)
+- `POST /create-intent` — Crear Payment Intent en Stripe para una reservación.
+- `GET /{paymentIntentId}/status` — Consultar estado del pago.
+- `POST /webhook` — Webhook de notificación asíncrona de Stripe.
 
-* **`GET /dashboard`**
-  * **Respuesta (200 OK)**: Métricas consolidadas (Ventas totales, reservaciones pendientes, stock bajo por producto, facturación del mes).
-* **`POST /personalizados`**
-  * **Payload**: `{ "nombre": "string", "querySql": "SELECT ... FROM ... WHERE tienda_id = @TiendaId" }`
-  * **Respuesta (201 Created)**: Guarda una plantilla de consulta SQL personalizada para el tenant.
-* **`GET /personalizados/{id}/ejecutar`**
-  * **Respuesta (200 OK)**: Ejecuta de manera segura la consulta SQL personalizada del tenant y retorna la rejilla de datos en formato JSON.
-* **`GET /ventas/exportar`**
-  * **Respuesta (200 OK)**: Genera y descarga un archivo `.xlsx` (Excel) con el desglose de ventas del mes en curso utilizando `ClosedXML` u otra librería de hojas de cálculo.
+### 9. Métodos de Pago Guardados (`MetodoPagoController`)
+Prefijo: `/api/v1/metodos-pago` | Acceso: Cliente Autenticado
 
----
+- `GET /` — Listar tarjetas guardadas del cliente.
+- `POST /` — Registrar nueva tarjeta tokenizada en Stripe.
+- `POST /contra-entrega` — Preparar método de pago contra entrega.
+- `DELETE /{id}` — Eliminar tarjeta guardada.
 
-### Pasarela de Pagos (Stripe) - `PagosController`
-Prefijo: `/api/pagos`
+### 10. Reportes y Analítica (`ReportesV1Controller`)
+Prefijo: `/api/v1/reportes` | Acceso: Staff / Admin
 
-* **`POST /crear-intento`** (Cliente Autenticado)
-  * **Payload**: `{ "reservacionId": "string" }`
-  * **Respuesta (200 OK)**: Retorna el `clientSecret` e `intentId` de Stripe para inicializar el SDK del lado del cliente.
-* **`POST /webhook`** (Público)
-  * **Payload**: Eventos asíncronos provenientes de los servidores de Stripe.
-  * **Acción**: Intercepta eventos de tipo `payment_intent.succeeded`. Busca la reservación asociada mediante `stripe_intent_id`, cambia su estado a `"pagado"` en la base de datos, lo que dispara automáticamente la deducción de inventario (`SaveChangesAsync`) en la sucursal.
+- `GET /productos` — Reporte de ventas e ingresos por producto.
+- `GET /empleados` — Reporte de rendimiento por empleado.
+- `GET /metodos-pago` — Distribución de ventas por método de pago.
+- `POST /ejecutar-raw` — Ejecutar consulta SQL personalizada segura (Admin).
+- `POST /guardar` — Guardar reporte personalizado.
+- `GET /` — Listar reportes personalizados guardados.
+- `GET /{id}/correr` — Ejecutar reporte guardado.
 
----
+### 11. Tiendas e Integraciones (`TiendasController`)
+Prefijo: `/api/v1/tiendas` | Acceso: Público / Admin
 
-### Gestión Visual del Constructor de Tiendas - `TiendasController`
-Prefijo: `/api/v1/tiendas`
+- `GET /` — Listar tiendas registradas.
+- `GET /{idOrSlug}` — Obtener información de una tienda por ID o Slug.
+- `POST /` — Crear nueva tienda.
+- `PUT /actualizar` — Actualizar información básica de la tienda.
+- `GET /integraciones` — Obtener credenciales de integración (Stripe, Cloudinary, SMTP).
+- `POST /integraciones` — Guardar configuración de integraciones (Admin).
+- `PUT /configuracion-visual` — Guardar configuración del maquetador visual de la tienda (Admin).
 
-* **`GET /configuracion-visual`** (Público)
-  * **Respuesta (200 OK)**: JSON completo del constructor visual de la tienda asociada.
-* **`PUT /configuracion-visual`** (Staff con rol `administrador`)
-  * **Payload**: Objeto JSON serializado con el esquema de secciones (`sections`).
-  * **Respuesta (200 OK)**: Configuración guardada en la base de datos de manera persistente.
+### 12. Media y Almacenamiento (`MediaController`)
+Prefijo: `/api/v1/media` | Acceso: Staff / Admin
 
-**Nota**: Para mayor informacion se sugiere consultar el Swagger del proyecto, este incluye el listado completo de todos los metodos http creados y el formato de las solicitudes y respuestas (en formato Json) de dichos metodos. 
+- `GET /cloudinary-signature` — Generar firma autorizada para subida directa a Cloudinary.

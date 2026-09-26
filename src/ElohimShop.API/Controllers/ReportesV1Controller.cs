@@ -70,4 +70,64 @@ public class ReportesV1Controller : V1ControllerBase
 
         return Ok(await _platformService.CorrerReporteAsync(id, cancellationToken));
     }
+
+    [HttpGet("productos")]
+    public async Task<IActionResult> Productos(
+        [FromQuery] DateTime? desde,
+        [FromQuery] DateTime? hasta,
+        [FromQuery] string? modo,
+        [FromServices] ElohimShop.Application.Reportes.IReportesService reportesService,
+        CancellationToken cancellationToken)
+    {
+        if (GetTenantId() is null || !EsStaff())
+        {
+            return Forbid();
+        }
+
+        var resultado = await reportesService.ObtenerProductosAsync(
+            new ElohimShop.Application.Reportes.ReportesFiltroDto(desde, hasta, modo ?? "todos"),
+            cancellationToken);
+
+        return Ok(resultado);
+    }
+
+    [HttpGet("empleados")]
+    public async Task<IActionResult> Empleados(
+        [FromQuery] DateTime? desde,
+        [FromQuery] DateTime? hasta,
+        [FromQuery] string? modo,
+        [FromServices] ElohimShop.Application.Reportes.IReportesService reportesService,
+        CancellationToken cancellationToken)
+    {
+        if (GetTenantId() is null || !EsStaff())
+        {
+            return Forbid();
+        }
+
+        var resultado = await reportesService.ObtenerEmpleadosAsync(
+            new ElohimShop.Application.Reportes.ReportesFiltroDto(desde, hasta, modo ?? "todos"),
+            cancellationToken);
+
+        return Ok(resultado);
+    }
+
+    [HttpGet("metodos-pago")]
+    public async Task<IActionResult> MetodosPago(
+        [FromQuery] DateTime? desde,
+        [FromQuery] DateTime? hasta,
+        [FromQuery] string? modo,
+        [FromServices] ElohimShop.Application.Reportes.IReportesService reportesService,
+        CancellationToken cancellationToken)
+    {
+        if (GetTenantId() is null || !EsStaff())
+        {
+            return Forbid();
+        }
+
+        var resultado = await reportesService.ObtenerMetodosPagoAsync(
+            new ElohimShop.Application.Reportes.ReportesFiltroDto(desde, hasta, modo ?? "todos"),
+            cancellationToken);
+
+        return Ok(resultado);
+    }
 }

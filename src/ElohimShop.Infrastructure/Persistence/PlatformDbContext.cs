@@ -163,6 +163,7 @@ public class PlatformDbContext : DbContext
             builder.Property(x => x.UserAgent).HasColumnType("text").HasColumnName("userAgent");
             builder.HasOne(x => x.User).WithMany(x => x.Sessions).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             builder.HasIndex(x => x.Token).IsUnique();
+            builder.HasQueryFilter(x => x.User.TiendaId == _tenantProvider.GetTenantId());
         });
 
         modelBuilder.Entity<Account>(builder =>
@@ -183,6 +184,7 @@ public class PlatformDbContext : DbContext
             builder.Property(x => x.CreatedAt).HasColumnType("timestamp with time zone").HasColumnName("createdAt");
             builder.Property(x => x.UpdatedAt).HasColumnType("timestamp with time zone").HasColumnName("updatedAt");
             builder.HasOne(x => x.User).WithMany(x => x.Accounts).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            builder.HasQueryFilter(x => x.User.TiendaId == _tenantProvider.GetTenantId());
         });
 
         modelBuilder.Entity<Verification>(builder =>

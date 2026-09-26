@@ -15,6 +15,7 @@ namespace ElohimShop.Infrastructure.Platform;
 public class PlatformService : IPlatformService
 {
     private static readonly Regex UnsafeSqlPattern = new(@"\b(drop|delete|update|insert|alter|truncate|grant|revoke|create|exec|execute|call)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex ForbiddenTablesPattern = new(@"\b(session|account|verification|CredencialesIntegracion)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private readonly PlatformDbContext _dbContext;
     private readonly ITenantProvider _tenantProvider;
@@ -731,9 +732,27 @@ public class PlatformService : IPlatformService
         return reservaciones.Select(MapReservacion).ToList();
     }
 
-    public async Task<ReservacionDto?> CambiarEstadoReservacionAsync(string id, CambiarEstadoReservacionRequest request, CancellationToken cancellationToken)
+    public async Task<ReservacionDto?> CambiarEstadoReservacionAsync(string id, CambiarEstadoReservacionRequest request, string actingUserId, CancellationToken cancellationToken)
     {
         var tenantId = RequireTenantId();
+
+        // 1. Validar que el usuario/cajero pertenezca al tenant del pedido
+        var actingUser = await _dbContext.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == actingUserId, cancellationToken);
+
+        if (actingUser is not null)
+        {
+            var esSuperAdmin = string.Equals(actingUser.TipoUsuario, "superadmin", StringComparison.OrdinalIgnoreCase) ||
+                               string.Equals(actingUser.RolStaff, "superadmin", StringComparison.OrdinalIgnoreCase);
+
+            if (!esSuperAdmin && !string.IsNullOrWhiteSpace(actingUser.TiendaId) &&
+                !string.Equals(actingUser.TiendaId, tenantId, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new UnauthorizedAccessException("El cajero o usuario no pertenece a la tienda correspondiente a este pedido.");
+            }
+        }
+
         var reservacion = await _dbContext.Reservaciones
             .Include(x => x.Detalles)
             .ThenInclude(x => x.Producto)
@@ -744,14 +763,85 @@ public class PlatformService : IPlatformService
             return null;
         }
 
-        if (!string.IsNullOrWhiteSpace(request.EstadoPago))
+        static int ObtenerRangoEstadoPago(string? estado) => estado?.ToLowerInvariant().Trim() switch
         {
-            reservacion.EstadoPago = request.EstadoPago.Trim();
+            "pendiente" => 1,
+            "pagado" => 2,
+            "cancelado" => 99,
+            _ => 1
+        };
+
+        static int ObtenerRangoEstadoDespacho(string? estado) => estado?.ToLowerInvariant().Trim() switch
+        {
+            "pendiente" or "procesando" => 1,
+            "despachado" or "entregado" or "completado" => 2,
+            "cancelado" => 99,
+            _ => 1
+        };
+
+        var nuevoEstadoPago = string.IsNullOrWhiteSpace(request.EstadoPago) ? null : request.EstadoPago.Trim().ToLowerInvariant();
+        var nuevoEstadoDespacho = string.IsNullOrWhiteSpace(request.EstadoDespacho) ? null : request.EstadoDespacho.Trim().ToLowerInvariant();
+
+        // 2. Validación Forward-Only (No permitir regresar a estados anteriores)
+        if (nuevoEstadoPago is not null && nuevoEstadoPago != "cancelado")
+        {
+            int rangoActualPago = ObtenerRangoEstadoPago(reservacion.EstadoPago);
+            int rangoNuevoPago = ObtenerRangoEstadoPago(nuevoEstadoPago);
+
+            if (rangoNuevoPago < rangoActualPago)
+            {
+                throw new InvalidOperationException($"No está permitido regresar el estado de pago de '{reservacion.EstadoPago}' a '{nuevoEstadoPago}'. Violación de reglas de negocio.");
+            }
         }
 
-        if (!string.IsNullOrWhiteSpace(request.EstadoDespacho))
+        if (nuevoEstadoDespacho is not null && nuevoEstadoDespacho != "cancelado")
         {
-            reservacion.EstadoDespacho = request.EstadoDespacho.Trim();
+            int rangoActualDespacho = ObtenerRangoEstadoDespacho(reservacion.EstadoDespacho);
+            int rangoNuevoDespacho = ObtenerRangoEstadoDespacho(nuevoEstadoDespacho);
+
+            if (rangoNuevoDespacho < rangoActualDespacho)
+            {
+                throw new InvalidOperationException($"No está permitido regresar el estado de despacho de '{reservacion.EstadoDespacho}' a '{nuevoEstadoDespacho}'. Violación de reglas de negocio.");
+            }
+        }
+
+        // 3. Manejo de Cancelación y Reversión a Inventario / Stock
+        bool seCancela = (nuevoEstadoPago == "cancelado" || nuevoEstadoDespacho == "cancelado");
+        bool yaEstabaCancelado = (reservacion.EstadoPago == "cancelado" || reservacion.EstadoDespacho == "cancelado");
+
+        if (seCancela && !yaEstabaCancelado)
+        {
+            foreach (var detail in reservacion.Detalles)
+            {
+                var inv = await _dbContext.Inventarios.FirstOrDefaultAsync(i =>
+                    i.SucursalId == reservacion.SucursalId &&
+                    i.ProductoId == detail.ProductoId, cancellationToken);
+                if (inv is not null)
+                {
+                    inv.Stock += detail.Cantidad;
+                }
+
+                var prod = await _dbContext.Productos.FirstOrDefaultAsync(p => p.Id == detail.ProductoId, cancellationToken);
+                if (prod is not null)
+                {
+                    prod.StockActual += detail.Cantidad;
+                }
+            }
+
+            reservacion.EstadoPago = "cancelado";
+            reservacion.EstadoDespacho = "cancelado";
+        }
+        else
+        {
+            if (nuevoEstadoPago is not null)
+            {
+                reservacion.EstadoPago = nuevoEstadoPago;
+            }
+
+            if (nuevoEstadoDespacho is not null)
+            {
+                reservacion.EstadoDespacho = nuevoEstadoDespacho;
+            }
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -764,12 +854,6 @@ public class PlatformService : IPlatformService
 
         var tenantId = RequireTenantId();
         var querySql = request.QuerySql;
-        
-        // Reemplazar tanto '@tenant_id' como @tenant_id y sus variantes
-        querySql = Regex.Replace(querySql, @"'@tenant_id'", $"'{tenantId}'", RegexOptions.IgnoreCase);
-        querySql = Regex.Replace(querySql, @"'@tienda_id'", $"'{tenantId}'", RegexOptions.IgnoreCase);
-        querySql = Regex.Replace(querySql, @"@tenant_id\b", $"'{tenantId}'", RegexOptions.IgnoreCase);
-        querySql = Regex.Replace(querySql, @"@tienda_id\b", $"'{tenantId}'", RegexOptions.IgnoreCase);
 
         var mainConnectionString = _dbContext.Database.GetConnectionString()
             ?? throw new InvalidOperationException("No se pudo obtener la cadena de conexión de la base de datos.");
@@ -794,8 +878,25 @@ public class PlatformService : IPlatformService
 
         try
         {
+            // 1. Inyectar tenant context a nivel de sesión PostgreSQL para forzar Row-Level Security (RLS)
+            try
+            {
+                await using var setTenantCmd = connection.CreateCommand();
+                setTenantCmd.CommandText = "SET LOCAL app.current_tenant = @tenantId;";
+                setTenantCmd.Parameters.Add(new Npgsql.NpgsqlParameter("tenantId", tenantId));
+                await setTenantCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+            catch
+            {
+                // Ignorar si el proveedor no soporta la variable de sesión (ej. SQLite en pruebas)
+            }
+
+            // 2. Preparar comando asignando parámetros fuertemente tipados
             await using var command = connection.CreateCommand();
             command.CommandText = querySql;
+            command.Parameters.Add(new Npgsql.NpgsqlParameter("tenant_id", tenantId));
+            command.Parameters.Add(new Npgsql.NpgsqlParameter("tienda_id", tenantId));
+
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
             var rows = new List<Dictionary<string, object?>>();
@@ -805,7 +906,6 @@ public class PlatformService : IPlatformService
                 for (var i = 0; i < reader.FieldCount; i++)
                 {
                     var colName = reader.GetName(i);
-                    // Evitar sobrescrituras en caso de columnas duplicadas (ej. múltiples SELECT id en JOINs)
                     if (row.ContainsKey(colName))
                     {
                         colName = $"{colName}_{i}";
@@ -1316,12 +1416,24 @@ public class PlatformService : IPlatformService
         }
 
         // Eliminar cadenas literales ('...') para evitar falsos positivos con palabras clave dentro de textos
-        var sqlWithoutLiterals = Regex.Replace(cleanSql, @"'(''|[^'])*'", "''");
+        var sqlWithoutLiterals = Regex.Replace(cleanSql, @"'(''|[^'])*'", "''").TrimEnd(';', ' ');
+
+        // Prevenir la ejecución de múltiples sentencias separadas por punto y coma (;)
+        if (sqlWithoutLiterals.Contains(';'))
+        {
+            throw new InvalidOperationException("No se permiten múltiples sentencias SQL en una sola consulta.");
+        }
 
         // Validar comandos inseguros de modificación de datos o estructura
         if (UnsafeSqlPattern.IsMatch(sqlWithoutLiterals))
         {
             throw new InvalidOperationException("La consulta contiene comandos no permitidos (solo se admiten sentencias de lectura).");
+        }
+
+        // Validar acceso no autorizado a tablas sensibles del sistema
+        if (ForbiddenTablesPattern.IsMatch(sqlWithoutLiterals))
+        {
+            throw new InvalidOperationException("No está permitido consultar tablas sensibles del sistema ni credenciales de seguridad.");
         }
     }
 

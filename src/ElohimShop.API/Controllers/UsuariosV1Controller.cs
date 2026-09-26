@@ -1,5 +1,7 @@
 using ElohimShop.Application.Platform;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
 
 namespace ElohimShop.API.Controllers;
 
@@ -122,4 +124,103 @@ public class UsuariosV1Controller : V1ControllerBase
         var eliminado = await _platformService.EliminarUsuarioAsync(id, cancellationToken);
         return eliminado ? NoContent() : NotFound(new { error = "Usuario no encontrado." });
     }
+
+    [HttpPost("{id}/reset-password")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GenerarCodigosRecuperacion(
+        string id,
+        [FromServices] ElohimShop.Infrastructure.Persistence.ElohimShopDbContext dbContext,
+        [FromServices] ElohimShop.Infrastructure.Persistence.PlatformDbContext platformDbContext,
+        CancellationToken cancellationToken)
+    {
+        if (!EsAdministrador())
+        {
+            return Forbid();
+        }
+
+        var platformUser = await platformDbContext.Users
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
+
+        if (platformUser is null)
+        {
+            return NotFound(new { error = "Usuario no encontrado en la plataforma." });
+        }
+
+        var elohimUser = await dbContext.Usuarios
+            .FirstOrDefaultAsync(u => u.Correo == platformUser.Email.Trim().ToLower(), cancellationToken);
+
+        if (elohimUser is null)
+        {
+            var account = await platformDbContext.Accounts
+                .FirstOrDefaultAsync(a => a.UserId == platformUser.Id && a.ProviderId == "credential", cancellationToken);
+            
+            var passwordHash = account?.Password ?? string.Empty;
+
+            if (string.Equals(platformUser.TipoUsuario, "cliente", StringComparison.OrdinalIgnoreCase))
+            {
+                elohimUser = ElohimShop.Domain.Entities.Usuario.CrearCliente(
+                    platformUser.Email,
+                    platformUser.Name,
+                    passwordHash,
+                    "particular",
+                    telefono: platformUser.Telefono);
+            }
+            else
+            {
+                elohimUser = ElohimShop.Domain.Entities.Usuario.CrearAdministrador(
+                    platformUser.Email,
+                    platformUser.Name,
+                    passwordHash,
+                    platformUser.RolStaff ?? "cajero",
+                    telefono: platformUser.Telefono);
+            }
+
+            dbContext.Usuarios.Add(elohimUser);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        var codigosAnteriores = await dbContext.CodigosRecuperacion
+            .Where(c => c.UsuarioId == elohimUser.Id && !c.Usado)
+            .ToListAsync(cancellationToken);
+
+        foreach (var cod in codigosAnteriores)
+        {
+            cod.Consumir();
+        }
+
+        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        var codigosPlanos = new List<string>();
+
+        for (int i = 0; i < 8; i++)
+        {
+            var bytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(10);
+            var codigo = new System.Text.StringBuilder();
+            foreach (var b in bytes)
+            {
+                codigo.Append(chars[b % chars.Length]);
+            }
+            var codigoPlano = codigo.ToString();
+            codigosPlanos.Add(codigoPlano);
+
+            var hash = Convert.ToBase64String(
+                System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(codigoPlano)));
+
+            dbContext.CodigosRecuperacion.Add(
+                ElohimShop.Domain.Entities.CodigoRecuperacion.Crear(elohimUser.Id, hash, diasValidez: 365));
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return Ok(new
+        {
+            usuarioId = id,
+            correo = elohimUser.Correo,
+            nombre = elohimUser.Nombre,
+            codigos = codigosPlanos
+        });
+    }
 }
+

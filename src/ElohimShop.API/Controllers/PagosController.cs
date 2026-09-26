@@ -12,8 +12,9 @@ namespace ElohimShop.API.Controllers;
 /// Pagos con Stripe: creación de PaymentIntent, consulta de estado y webhook para marcar reservas como pagadas.
 /// </summary>
 [ApiController]
-[Route("api/pagos")]
+[Route("api/v1/pagos")]
 public class PagosController : ControllerBase
+
 {
     private readonly IPagosService _pagosService;
     private readonly IStripeWebhookHandler _stripeWebhookHandler;

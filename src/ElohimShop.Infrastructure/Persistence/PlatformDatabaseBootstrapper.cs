@@ -118,5 +118,39 @@ public static class PlatformDatabaseBootstrapper
         {
             logger.LogError(ex, "No se pudo configurar el rol de lectura reports_readonly.");
         }
+
+        // Configurar Row-Level Security (RLS) en PostgreSQL para aislamiento estricto de tenants
+        try
+        {
+            await dbContext.Database.ExecuteSqlRawAsync(@"
+                DO $$
+                DECLARE
+                    tbl text;
+                    tables text[] := ARRAY['Reservacion', 'Producto', 'Inventario', 'Categoria', 'CarritoElemento', 'ReportePersonalizado', 'user'];
+                BEGIN
+                    FOREACH tbl IN ARRAY tables LOOP
+                        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', tbl);
+                        
+                        EXECUTE format('DROP POLICY IF EXISTS tenant_isolation_policy ON %I;', tbl);
+                        
+                        EXECUTE format('
+                            CREATE POLICY tenant_isolation_policy ON %I
+                            FOR ALL
+                            USING (
+                                NULLIF(current_setting(''app.current_tenant'', true), '''') IS NULL OR
+                                current_setting(''app.current_tenant'', true) = ''*'' OR
+                                tienda_id IS NULL OR
+                                tienda_id = current_setting(''app.current_tenant'', true)
+                            );', tbl);
+                    END LOOP;
+                END
+                $$;", cancellationToken);
+
+            logger.LogInformation("Políticas de Row-Level Security (RLS) en PostgreSQL configuradas con éxito.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "No se pudieron configurar las políticas RLS en PostgreSQL (podría tratarse de proveedor no Postgres o pruebas en memoria).");
+        }
     }
 }

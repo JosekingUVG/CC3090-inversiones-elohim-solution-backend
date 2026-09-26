@@ -11,9 +11,10 @@ using Microsoft.Extensions.Options;
 namespace ElohimShop.API.Controllers;
 
 [ApiController]
-[Route("api/metodoPago")]
+[Route("api/v1/metodos-pago")]
 [Authorize]
 public class MetodoPagoController : V1ControllerBase
+
 {
     private readonly IMetodosPagoUsuarioService _metodosPago;
     private readonly PlatformDbContext _platformDb;
