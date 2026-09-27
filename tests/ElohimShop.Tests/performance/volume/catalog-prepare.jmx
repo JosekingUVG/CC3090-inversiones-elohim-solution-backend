@@ -1,0 +1,310 @@
+<?xml version='1.0' encoding='utf-8'?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="VOL-01 - Preparar catalogo" enabled="true">
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="Variables">
+        <collectionProp name="Arguments.arguments" />
+      </elementProp>
+      <stringProp name="TestPlan.comments">Solo componentes nativos. Configuracion: ../data/volume.csv. Preparar datos por separado de la medicion.</stringProp>
+    </TestPlan>
+    <hashTree>
+      <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP Request Defaults" enabled="true">
+        <stringProp name="HTTPSampler.domain">${__P(host,localhost)}</stringProp>
+        <stringProp name="HTTPSampler.port">${__P(port,5000)}</stringProp>
+        <stringProp name="HTTPSampler.protocol">${__P(protocol,http)}</stringProp>
+        <stringProp name="HTTPSampler.connect_timeout">${__P(connect_timeout,5000)}</stringProp>
+        <stringProp name="HTTPSampler.response_timeout">${__P(response_timeout,30000)}</stringProp>
+        <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="Variables">
+          <collectionProp name="Arguments.arguments" />
+        </elementProp>
+      </ConfigTestElement>
+      <hashTree />
+      <CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="Credenciales para preparar" enabled="true">
+        <stringProp name="filename">${__P(users_file,../data/volume-users.csv)}</stringProp>
+        <stringProp name="fileEncoding">UTF-8</stringProp>
+        <stringProp name="variableNames" />
+        <stringProp name="delimiter">,</stringProp>
+        <stringProp name="shareMode">shareMode.all</stringProp>
+        <boolProp name="ignoreFirstLine">false</boolProp>
+        <boolProp name="quotedData">true</boolProp>
+        <boolProp name="recycle">true</boolProp>
+        <boolProp name="stopThread">false</boolProp>
+      </CSVDataSet>
+      <hashTree />
+      <CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="Configuracion volumen" enabled="true">
+        <stringProp name="filename">${__P(volume_file,../data/volume.csv)}</stringProp>
+        <stringProp name="fileEncoding">UTF-8</stringProp>
+        <stringProp name="variableNames" />
+        <stringProp name="delimiter">,</stringProp>
+        <stringProp name="shareMode">shareMode.all</stringProp>
+        <boolProp name="ignoreFirstLine">false</boolProp>
+        <boolProp name="quotedData">true</boolProp>
+        <boolProp name="recycle">true</boolProp>
+        <boolProp name="stopThread">false</boolProp>
+      </CSVDataSet>
+      <hashTree />
+      <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Headers tenant" enabled="true">
+        <collectionProp name="HeaderManager.headers">
+          <elementProp name="Accept" elementType="Header">
+            <stringProp name="Header.name">Accept</stringProp>
+            <stringProp name="Header.value">application/json</stringProp>
+          </elementProp>
+          <elementProp name="Content-Type" elementType="Header">
+            <stringProp name="Header.name">Content-Type</stringProp>
+            <stringProp name="Header.value">application/json</stringProp>
+          </elementProp>
+          <elementProp name="X-Tenant-ID" elementType="Header">
+            <stringProp name="Header.name">X-Tenant-ID</stringProp>
+            <stringProp name="Header.value">${tenant_id}</stringProp>
+          </elementProp>
+        </collectionProp>
+      </HeaderManager>
+      <hashTree />
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Un usuario - flujo secuencial" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">stoptest</stringProp>
+        <stringProp name="ThreadGroup.num_threads">1</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">0</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Leer configuracion una vez">
+          <stringProp name="LoopController.loops">1</stringProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+      </ThreadGroup>
+      <hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Preparacion - login" enabled="true">
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">{"correo":"${correo}","contrasena":"${contrasena}"}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <stringProp name="HTTPSampler.path">/api/v1/auth/login</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="HTTP 200" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="200">200</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree />
+          <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extraer JWT" enabled="true">
+            <stringProp name="JSONPostProcessor.referenceNames">jwt</stringProp>
+            <stringProp name="JSONPostProcessor.jsonPathExprs">$.token</stringProp>
+            <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+            <stringProp name="JSONPostProcessor.defaultValues">NOT_FOUND</stringProp>
+          </JSONPostProcessor>
+          <hashTree />
+          <JMESPathAssertion guiclass="JMESPathAssertionGui" testclass="JMESPathAssertion" testname="Login contiene token" enabled="true">
+            <stringProp name="JMES_PATH">length(token) &gt; `0`</stringProp>
+            <stringProp name="EXPECTED_VALUE">true</stringProp>
+            <boolProp name="JSONVALIDATION">true</boolProp>
+            <boolProp name="EXPECT_NULL">false</boolProp>
+            <boolProp name="INVERT">false</boolProp>
+            <boolProp name="ISREGEX">false</boolProp>
+          </JMESPathAssertion>
+          <hashTree />
+        </hashTree>
+        <GenericController guiclass="LogicControllerGui" testclass="GenericController" testname="Preparacion autenticada" enabled="true" />
+        <hashTree>
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Bearer obtenido del login" enabled="true">
+            <collectionProp name="HeaderManager.headers">
+              <elementProp name="Authorization" elementType="Header">
+                <stringProp name="Header.name">Authorization</stringProp>
+                <stringProp name="Header.value">Bearer ${jwt}</stringProp>
+              </elementProp>
+            </collectionProp>
+          </HeaderManager>
+          <hashTree />
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Preparacion - exigir catalogo vacio" enabled="true">
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments" />
+            </elementProp>
+            <stringProp name="HTTPSampler.path">/api/v1/productos</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree>
+            <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="HTTP 200" enabled="true">
+              <collectionProp name="Asserion.test_strings">
+                <stringProp name="200">200</stringProp>
+              </collectionProp>
+              <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+              <intProp name="Assertion.test_type">8</intProp>
+            </ResponseAssertion>
+            <hashTree />
+            <JMESPathAssertion guiclass="JMESPathAssertionGui" testclass="JMESPathAssertion" testname="Catalogo vacio obligatorio" enabled="true">
+              <stringProp name="JMES_PATH">length(@)</stringProp>
+              <stringProp name="EXPECTED_VALUE">0</stringProp>
+              <boolProp name="JSONVALIDATION">true</boolProp>
+              <boolProp name="EXPECT_NULL">false</boolProp>
+              <boolProp name="INVERT">false</boolProp>
+              <boolProp name="ISREGEX">false</boolProp>
+            </JMESPathAssertion>
+            <hashTree />
+          </hashTree>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Preparacion - validar sucursales" enabled="true">
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments" />
+            </elementProp>
+            <stringProp name="HTTPSampler.path">/api/v1/sucursales</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree>
+            <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="HTTP 200" enabled="true">
+              <collectionProp name="Asserion.test_strings">
+                <stringProp name="200">200</stringProp>
+              </collectionProp>
+              <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+              <intProp name="Assertion.test_type">8</intProp>
+            </ResponseAssertion>
+            <hashTree />
+            <JMESPathAssertion guiclass="JMESPathAssertionGui" testclass="JMESPathAssertion" testname="Sucursal existe: branch_a" enabled="true">
+              <stringProp name="JMES_PATH">length([?id == '${branch_a}'])</stringProp>
+              <stringProp name="EXPECTED_VALUE">1</stringProp>
+              <boolProp name="JSONVALIDATION">true</boolProp>
+              <boolProp name="EXPECT_NULL">false</boolProp>
+              <boolProp name="INVERT">false</boolProp>
+              <boolProp name="ISREGEX">false</boolProp>
+            </JMESPathAssertion>
+            <hashTree />
+            <JMESPathAssertion guiclass="JMESPathAssertionGui" testclass="JMESPathAssertion" testname="Sucursal existe: branch_b" enabled="true">
+              <stringProp name="JMES_PATH">length([?id == '${branch_b}'])</stringProp>
+              <stringProp name="EXPECTED_VALUE">1</stringProp>
+              <boolProp name="JSONVALIDATION">true</boolProp>
+              <boolProp name="EXPECT_NULL">false</boolProp>
+              <boolProp name="INVERT">false</boolProp>
+              <boolProp name="ISREGEX">false</boolProp>
+            </JMESPathAssertion>
+            <hashTree />
+            <JMESPathAssertion guiclass="JMESPathAssertionGui" testclass="JMESPathAssertion" testname="Sucursales diferentes" enabled="true">
+              <stringProp name="JMES_PATH">'${branch_a}' != '${branch_b}'</stringProp>
+              <stringProp name="EXPECTED_VALUE">true</stringProp>
+              <boolProp name="JSONVALIDATION">true</boolProp>
+              <boolProp name="EXPECT_NULL">false</boolProp>
+              <boolProp name="INVERT">false</boolProp>
+              <boolProp name="ISREGEX">false</boolProp>
+            </JMESPathAssertion>
+            <hashTree />
+          </hashTree>
+          <LoopController guiclass="LoopControlPanel" testclass="LoopController" testname="Crear ${product_count} productos" enabled="true">
+            <stringProp name="LoopController.loops">${product_count}</stringProp>
+            <boolProp name="LoopController.continue_forever">false</boolProp>
+          </LoopController>
+          <hashTree>
+            <CounterConfig guiclass="CounterConfigGui" testclass="CounterConfig" testname="SKU secuencial" enabled="true">
+              <stringProp name="CounterConfig.start">1</stringProp>
+              <stringProp name="CounterConfig.end">${product_count}</stringProp>
+              <stringProp name="CounterConfig.incr">1</stringProp>
+              <stringProp name="CounterConfig.name">product_number</stringProp>
+              <stringProp name="CounterConfig.format">000000</stringProp>
+              <boolProp name="CounterConfig.per_user">true</boolProp>
+              <boolProp name="CounterConfig.reset_on_tg_iteration">false</boolProp>
+            </CounterConfig>
+            <hashTree />
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Preparacion - crear producto" enabled="true">
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments">
+                  <elementProp name="" elementType="HTTPArgument">
+                    <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                    <stringProp name="Argument.value">{"nombre":"VOL producto ${product_number}","sku":"VOL-${product_number}","precioMayoreo":10,"precioDetalle":15,"descripcion":"Datos sinteticos VOL-01","publicado":true,"stockMinimo":2,"stockSucursales":[{"sucursalId":"${branch_a}","stock":10},{"sucursalId":"${branch_b}","stock":20}]}</stringProp>
+                    <stringProp name="Argument.metadata">=</stringProp>
+                  </elementProp>
+                </collectionProp>
+              </elementProp>
+              <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+              <stringProp name="HTTPSampler.path">/api/v1/productos</stringProp>
+              <stringProp name="HTTPSampler.method">POST</stringProp>
+              <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+              <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="HTTP 201" enabled="true">
+                <collectionProp name="Asserion.test_strings">
+                  <stringProp name="201">201</stringProp>
+                </collectionProp>
+                <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+                <intProp name="Assertion.test_type">8</intProp>
+              </ResponseAssertion>
+              <hashTree />
+              <JMESPathAssertion guiclass="JMESPathAssertionGui" testclass="JMESPathAssertion" testname="SKU creado" enabled="true">
+                <stringProp name="JMES_PATH">sku</stringProp>
+                <stringProp name="EXPECTED_VALUE">VOL-${product_number}</stringProp>
+                <boolProp name="JSONVALIDATION">true</boolProp>
+                <boolProp name="EXPECT_NULL">false</boolProp>
+                <boolProp name="INVERT">false</boolProp>
+                <boolProp name="ISREGEX">false</boolProp>
+              </JMESPathAssertion>
+              <hashTree />
+              <JMESPathAssertion guiclass="JMESPathAssertionGui" testclass="JMESPathAssertion" testname="Tenant creado" enabled="true">
+                <stringProp name="JMES_PATH">tiendaId</stringProp>
+                <stringProp name="EXPECTED_VALUE">${tenant_id}</stringProp>
+                <boolProp name="JSONVALIDATION">true</boolProp>
+                <boolProp name="EXPECT_NULL">false</boolProp>
+                <boolProp name="INVERT">false</boolProp>
+                <boolProp name="ISREGEX">false</boolProp>
+              </JMESPathAssertion>
+              <hashTree />
+              <JMESPathAssertion guiclass="JMESPathAssertionGui" testclass="JMESPathAssertion" testname="Inventarios creados" enabled="true">
+                <stringProp name="JMES_PATH">length(inventarios)</stringProp>
+                <stringProp name="EXPECTED_VALUE">2</stringProp>
+                <boolProp name="JSONVALIDATION">true</boolProp>
+                <boolProp name="EXPECT_NULL">false</boolProp>
+                <boolProp name="INVERT">false</boolProp>
+                <boolProp name="ISREGEX">false</boolProp>
+              </JMESPathAssertion>
+              <hashTree />
+              <JMESPathAssertion guiclass="JMESPathAssertionGui" testclass="JMESPathAssertion" testname="Stock total" enabled="true">
+                <stringProp name="JMES_PATH">stockTotal</stringProp>
+                <stringProp name="EXPECTED_VALUE">30</stringProp>
+                <boolProp name="JSONVALIDATION">true</boolProp>
+                <boolProp name="EXPECT_NULL">false</boolProp>
+                <boolProp name="INVERT">false</boolProp>
+                <boolProp name="ISREGEX">false</boolProp>
+              </JMESPathAssertion>
+              <hashTree />
+            </hashTree>
+          </hashTree>
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Preparacion - verificar total final" enabled="true">
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+              <collectionProp name="Arguments.arguments" />
+            </elementProp>
+            <stringProp name="HTTPSampler.path">/api/v1/productos</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
+            <boolProp name="HTTPSampler.follow_redirects">false</boolProp>
+            <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          </HTTPSamplerProxy>
+          <hashTree>
+            <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="HTTP 200" enabled="true">
+              <collectionProp name="Asserion.test_strings">
+                <stringProp name="200">200</stringProp>
+              </collectionProp>
+              <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+              <intProp name="Assertion.test_type">8</intProp>
+            </ResponseAssertion>
+            <hashTree />
+            <JMESPathAssertion guiclass="JMESPathAssertionGui" testclass="JMESPathAssertion" testname="Total preparado" enabled="true">
+              <stringProp name="JMES_PATH">length(@)</stringProp>
+              <stringProp name="EXPECTED_VALUE">${product_count}</stringProp>
+              <boolProp name="JSONVALIDATION">true</boolProp>
+              <boolProp name="EXPECT_NULL">false</boolProp>
+              <boolProp name="INVERT">false</boolProp>
+              <boolProp name="ISREGEX">false</boolProp>
+            </JMESPathAssertion>
+            <hashTree />
+          </hashTree>
+        </hashTree>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>

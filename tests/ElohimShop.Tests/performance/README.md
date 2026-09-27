@@ -23,7 +23,7 @@ JMETER_BIN=./scripts/jmeter-docker.sh USERS=5 RAMP_UP=5 DURATION=30 BASELINE_SEC
 
 El adaptador usa la red del host, por lo que esta alternativa está orientada a Docker sobre Linux.
 
-Evitar ejecutar JMeter 5.6.3 con Java 26: el motor Groovy incluido no es compatible. El adaptador Docker mantiene una JVM compatible dentro del contenedor; si se usa JMeter local, se recomienda Java 17 o 21. Los planes actuales ya no usan Groovy, pero una JVM soportada evita problemas con otros componentes o plugins.
+Los planes de carga, estrés y volumen usan componentes nativos, sin Groovy. La prueba de volumen se adapta a JMeter 5.6.3 con Java 26.0.2.1; no requiere cambiar la JVM. La compatibilidad de otros plugins o scripts debe verificarse por separado.
 
 ## Datos de prueba
 
@@ -95,3 +95,9 @@ El analizador marca NF-01 como fallo si el error total es `>= 1%`, si el p95 de 
 El endpoint real `GET /api/v1/productos` actualmente devuelve la lista completa y no declara parámetros de paginación o filtros. Por eso este plan no agrega parámetros que el controlador ignoraría. Cuando el controlador los implemente, debe ampliarse `products.csv` y el sampler.
 
 Si JMeter comparte el host con Docker, las cifras representan la capacidad conjunta del generador y el sistema bajo prueba. Para resultados comparables, ejecutar JMeter desde otra computadora apuntando `BASE_URL` al host del backend.
+
+## VOL-01 — Volumen del catálogo
+
+Ver [instrucciones de volumen](volume/README.md). Usa `data/volume.csv` (copiar `data/volume.example.csv`), `volume/catalog-prepare.jmx` para preparar y `volume/catalog-volume.jmx` para medir. No necesita Python ni Groovy.
+
+Para volumen con reporte HTML automático: `bash scripts/run-volume.sh prepare` y luego `bash scripts/run-volume.sh run`. Para GUI en Java 26 usar `bash scripts/run-volume.sh gui-run`, que selecciona Metal. Configurar antes `data/volume.csv` con IDs reales.
