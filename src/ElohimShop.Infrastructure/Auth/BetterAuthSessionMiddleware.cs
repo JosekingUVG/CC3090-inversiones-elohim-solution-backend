@@ -58,18 +58,34 @@ public class BetterAuthSessionMiddleware
                 string? effectiveTiendaId = user.TiendaId;
 
                 // Validate tenant access
+                string? requestedTenantId = null;
                 if (context.Request.Headers.TryGetValue("X-Tenant-ID", out var tenantIdHeader) && !string.IsNullOrWhiteSpace(tenantIdHeader))
                 {
-                    var requestedTenantId = tenantIdHeader.ToString();
+                    requestedTenantId = tenantIdHeader.ToString();
+                }
+                else if (context.Request.Headers.TryGetValue("X-Tenant-Slug", out var slugHeader) && !string.IsNullOrWhiteSpace(slugHeader))
+                {
+                    var requestedSlug = slugHeader.ToString().Trim();
+                    var requestedStore = await dbContext.Tiendas
+                        .IgnoreQueryFilters()
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(t => t.Slug == requestedSlug, cancellationToken: CancellationToken.None);
+
+                    requestedTenantId = requestedStore?.Id;
+                }
+
+                if (!string.IsNullOrWhiteSpace(requestedTenantId))
+                {
                     var esSuperAdmin = string.Equals(user.RolStaff, "superadmin", StringComparison.OrdinalIgnoreCase) ||
                                        SuperAdminHelper.IsSuperAdminEmail(user.Email, _configuration["SuperAdmin:Email"]);
 
-                    if (user.TiendaId != requestedTenantId)
+                    if (!string.Equals(user.TiendaId, requestedTenantId, StringComparison.OrdinalIgnoreCase))
                     {
                         if (user.TipoUsuario == "cliente")
                         {
-                            // Ignore customer session of other stores, treat request as anonymous guest
-                            await _next(context);
+                            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                            context.Response.ContentType = "application/json";
+                            await context.Response.WriteAsJsonAsync(new { error = "No tienes acceso a esta tienda." });
                             return;
                         }
 

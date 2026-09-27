@@ -35,3 +35,20 @@ desktop.ini
 # Python
 **/__pycache__/
 *.py[cod]
+
+# Python / virtualenv
+**/.venv/
+**/venv/
+**/env/
+**/.env/
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.tox/
+**/.nox/
+**/.coverage
+**/.coverage.*
+**/htmlcov/
+**/*.py[cod]
+**/.ipynb_checkpoints/
