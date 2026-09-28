@@ -20,6 +20,25 @@ public sealed record CredencialesIntegracionDto(
 public sealed record CrearTiendaRequest(string Nombre, string Slug);
 public sealed record ActualizarTiendaRequest(string Nombre, string Slug);
 public sealed record ActualizarConfiguracionVisualRequest(JsonElement ConfiguracionVisual);
+// Se almacenan dentro de Tienda.ConfiguracionVisual (JSONB); no existe tabla adicional.
+public sealed record ConfiguracionHistorialEntry(
+    int Version,
+    DateTime Timestamp,
+    string UsuarioId,
+    string Dispositivo,
+    JsonElement Config);
+
+public sealed record ConfiguracionConHistorial(
+    JsonElement Current,
+    List<ConfiguracionHistorialEntry> History);
+
+public sealed record GuardarConfiguracionDraftRequest(
+    JsonElement Configuracion,
+    string Dispositivo);
+
+public sealed record ObtenerHistorialResponse(
+    List<ConfiguracionHistorialEntry> History,
+    int MaxVersion);
 public sealed record GuardarIntegracionesRequest(
     string? StripeSecretKey,
     string? StripePublicKey,
@@ -241,6 +260,9 @@ public interface IPlatformService
     Task<TiendaDto> ActualizarTiendaAsync(ActualizarTiendaRequest request, CancellationToken cancellationToken);
     Task<bool> SlugDisponibleAsync(string slug, CancellationToken cancellationToken);
     Task<TiendaDto> ActualizarConfiguracionVisualAsync(ActualizarConfiguracionVisualRequest request, CancellationToken cancellationToken);
+    Task<ConfiguracionConHistorial> GuardarConfiguracionDraftAsync(GuardarConfiguracionDraftRequest request, CancellationToken cancellationToken);
+    Task<ObtenerHistorialResponse> ObtenerHistorialConfiguracionAsync(int limit, int offset, CancellationToken cancellationToken);
+    Task<TiendaDto> RestaurarConfiguracionVersionAsync(int version, CancellationToken cancellationToken);
     Task<TiendaDto> GuardarIntegracionesAsync(GuardarIntegracionesRequest request, CancellationToken cancellationToken);
     Task<CredencialesIntegracionDtoFull> ObtenerIntegracionesAsync(CancellationToken cancellationToken);
 

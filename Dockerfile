@@ -18,13 +18,14 @@ RUN dotnet publish "src/ElohimShop.API/ElohimShop.API.csproj" -c Release -o /app
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
-RUN apt-get update --fix-missing && apt-get install -y --no-install-recommends postgresql-client ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update --fix-missing && apt-get install -y --no-install-recommends postgresql-client ca-certificates dos2unix && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/publish/. .
-COPY entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh.tmp
 
 ENV ASPNETCORE_URLS=http://+:5000
 EXPOSE 5000
 
-RUN chmod +x /entrypoint.sh
+# Normaliza CRLF->LF por si el checkout local en Windows no respetó .gitattributes.
+RUN dos2unix /entrypoint.sh.tmp && mv /entrypoint.sh.tmp /entrypoint.sh && chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]

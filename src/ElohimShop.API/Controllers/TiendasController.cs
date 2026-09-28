@@ -77,6 +77,53 @@ public class TiendasController : V1ControllerBase
         return Ok(tienda);
     }
 
+    [HttpPost("configuracion/draft")]
+    public async Task<IActionResult> GuardarConfiguracionDraft(
+        [FromBody] GuardarConfiguracionDraftRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (GetTenantId() is null) return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
+        try
+        {
+            return Ok(await _platformService.GuardarConfiguracionDraftAsync(request, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpGet("configuracion/historial")]
+    public async Task<IActionResult> ObtenerHistorialConfiguracion(
+        [FromQuery] int limit = 50,
+        [FromQuery] int offset = 0,
+        CancellationToken cancellationToken = default)
+    {
+        if (GetTenantId() is null) return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
+        try
+        {
+            return Ok(await _platformService.ObtenerHistorialConfiguracionAsync(limit, offset, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpPost("configuracion/restore/{version:int}")]
+    public async Task<IActionResult> RestaurarConfiguracion(int version, CancellationToken cancellationToken)
+    {
+        if (GetTenantId() is null) return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
+        try
+        {
+            return Ok(await _platformService.RestaurarConfiguracionVersionAsync(version, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     [HttpPost("integraciones")]
     public async Task<IActionResult> GuardarIntegraciones([FromBody] GuardarIntegracionesRequest request, CancellationToken cancellationToken)
     {

@@ -184,7 +184,66 @@ public class PlatformService : IPlatformService
     public async Task<TiendaDto> ActualizarConfiguracionVisualAsync(ActualizarConfiguracionVisualRequest request, CancellationToken cancellationToken)
     {
         var tienda = await GetTenantStoreAsync(cancellationToken);
-        tienda.ConfiguracionVisual = request.ConfiguracionVisual.GetRawText();
+        // Publicar cambia la configuración actual, pero conserva todas las versiones.
+        var envelope = ExtractConfigurationEnvelope(tienda.ConfiguracionVisual);
+        tienda.ConfiguracionVisual = SerializeConfigurationEnvelope(request.ConfiguracionVisual, envelope.History);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return await MapTiendaAsync(tienda.Id, cancellationToken);
+    }
+
+    public async Task<ConfiguracionConHistorial> GuardarConfiguracionDraftAsync(
+        GuardarConfiguracionDraftRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tienda = await GetTenantStoreAsync(cancellationToken);
+        var envelope = ExtractConfigurationEnvelope(tienda.ConfiguracionVisual);
+        var userId = GetCurrentUserId();
+        var nextVersion = envelope.History.Count == 0 ? 1 : envelope.History.Max(x => x.Version) + 1;
+        var entry = new ConfiguracionHistorialEntry(
+            nextVersion,
+            DateTime.UtcNow,
+            userId,
+            string.IsNullOrWhiteSpace(request.Dispositivo) ? "unknown" : request.Dispositivo.Trim(),
+            request.Configuracion.Clone());
+
+        envelope.History.Add(entry);
+        tienda.ConfiguracionVisual = SerializeConfigurationEnvelope(request.Configuracion, envelope.History);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new ConfiguracionConHistorial(request.Configuracion.Clone(), envelope.History);
+    }
+
+    public async Task<ObtenerHistorialResponse> ObtenerHistorialConfiguracionAsync(
+        int limit,
+        int offset,
+        CancellationToken cancellationToken)
+    {
+        var tienda = await GetTenantStoreAsync(cancellationToken);
+        var envelope = ExtractConfigurationEnvelope(tienda.ConfiguracionVisual);
+        var userId = GetCurrentUserId();
+        var maxVersion = envelope.History.Count == 0 ? 0 : envelope.History.Max(x => x.Version);
+        var history = envelope.History
+            .Where(x => x.UsuarioId == userId)
+            .OrderByDescending(x => x.Version)
+            .Skip(Math.Max(0, offset))
+            .Take(Math.Clamp(limit, 1, 100))
+            .ToList();
+        return new ObtenerHistorialResponse(history, maxVersion);
+    }
+
+    public async Task<TiendaDto> RestaurarConfiguracionVersionAsync(int version, CancellationToken cancellationToken)
+    {
+        var tienda = await GetTenantStoreAsync(cancellationToken);
+        var envelope = ExtractConfigurationEnvelope(tienda.ConfiguracionVisual);
+        var userId = GetCurrentUserId();
+        var source = envelope.History.FirstOrDefault(x => x.Version == version && x.UsuarioId == userId)
+            ?? throw new InvalidOperationException("La versión solicitada no existe o no pertenece al usuario actual.");
+
+        var restoredConfig = source.Config.Clone();
+        var nextVersion = envelope.History.Count == 0 ? 1 : envelope.History.Max(x => x.Version) + 1;
+        envelope.History.Add(new ConfiguracionHistorialEntry(
+            nextVersion, DateTime.UtcNow, userId, source.Dispositivo, restoredConfig));
+        tienda.ConfiguracionVisual = SerializeConfigurationEnvelope(restoredConfig, envelope.History);
         await _dbContext.SaveChangesAsync(cancellationToken);
         return await MapTiendaAsync(tienda.Id, cancellationToken);
     }
@@ -969,6 +1028,58 @@ public class PlatformService : IPlatformService
         return await EjecutarRawReporteAsync(new EjecutarRawReporteRequest(reporte.QuerySql), cancellationToken);
     }
 
+    private static readonly JsonSerializerOptions ConfigurationJsonOptions = new(JsonSerializerDefaults.Web);
+
+    private sealed class ConfigurationEnvelope
+    {
+        public JsonElement Current { get; init; }
+        public List<ConfiguracionHistorialEntry> History { get; init; } = [];
+    }
+
+    private static ConfigurationEnvelope ExtractConfigurationEnvelope(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return new ConfigurationEnvelope { Current = EmptyConfiguration() };
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("current", out var current))
+            {
+                var history = root.TryGetProperty("history", out var historyElement)
+                    ? historyElement.Deserialize<List<ConfiguracionHistorialEntry>>(ConfigurationJsonOptions) ?? []
+                    : [];
+                return new ConfigurationEnvelope { Current = current.Clone(), History = history };
+            }
+
+            // Compatibilidad con configuraciones creadas antes de esta funcionalidad.
+            return new ConfigurationEnvelope { Current = root.Clone() };
+        }
+        catch (JsonException)
+        {
+            return new ConfigurationEnvelope { Current = EmptyConfiguration() };
+        }
+    }
+
+    private static JsonElement EmptyConfiguration()
+    {
+        using var document = JsonDocument.Parse("{}");
+        return document.RootElement.Clone();
+    }
+
+    private static string SerializeConfigurationEnvelope(JsonElement current, List<ConfiguracionHistorialEntry> history)
+        => JsonSerializer.Serialize(new { current, history }, ConfigurationJsonOptions);
+
+    private string GetCurrentUserId()
+    {
+        var user = _httpContextAccessor.HttpContext?.User;
+        return user?.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? user?.FindFirst("sub")?.Value
+            ?? user?.FindFirst(ClaimTypes.Email)?.Value
+            ?? throw new InvalidOperationException("No se pudo identificar al usuario actual.");
+    }
+
     private async Task<TiendaDto> MapTiendaAsync(string tiendaId, CancellationToken cancellationToken)
     {
         var tienda = await _dbContext.Tiendas.AsNoTracking().FirstAsync(x => x.Id == tiendaId, cancellationToken);
@@ -978,7 +1089,7 @@ public class PlatformService : IPlatformService
             tienda.Nombre,
             tienda.Slug,
             tienda.Estado,
-            tienda.ConfiguracionVisual,
+            ExtractConfigurationEnvelope(tienda.ConfiguracionVisual).Current.GetRawText(),
             tienda.FechaCreacion,
             credenciales is null ? null : new CredencialesIntegracionDto(
                 credenciales.TiendaId,
