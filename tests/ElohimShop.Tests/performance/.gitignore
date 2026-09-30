@@ -1,0 +1,20 @@
+# Credenciales locales: subir solamente users.example.csv.
+/data/users.csv
+/jmeter.log
+
+# Artefactos pesados generados por JMeter.
+/results/*
+!/results/.gitkeep
+/reports/*
+!/reports/.gitkeep
+
+# Configuracion local de volumen
+/data/volume.csv
+/volume/results/
+/volume/__pycache__/
+
+/data/volume-users.csv
+/data/volume-setup.json
+/data/volume-V*.csv
+/data/volume-users-V*.csv
+/data/volume-setup-V*.json
