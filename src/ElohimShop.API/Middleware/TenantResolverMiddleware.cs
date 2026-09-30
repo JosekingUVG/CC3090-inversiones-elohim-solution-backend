@@ -64,14 +64,14 @@ public class TenantResolverMiddleware
             tienda = await dbContext.Tiendas
                 .IgnoreQueryFilters()
                 .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Id == candidateTenantId);
+                .FirstOrDefaultAsync(t => t.Id == candidateTenantId || t.Slug == candidateTenantId);
         }
         else if (!string.IsNullOrEmpty(candidateSlug))
         {
             tienda = await dbContext.Tiendas
                 .IgnoreQueryFilters()
                 .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Slug == candidateSlug);
+                .FirstOrDefaultAsync(t => t.Slug == candidateSlug || t.Id == candidateSlug);
         }
 
         // Si se especificó una tienda en el request pero no se encuentra en BD o está inactiva
