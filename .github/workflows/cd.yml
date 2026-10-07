@@ -1,0 +1,52 @@
+name: Backend CD
+
+on:
+  workflow_run:
+    workflows: ['Backend CI']
+    types: [completed]
+    branches: [main]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  publish:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
+      IMAGE_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - name: Validate Docker Hub configuration
+        run: |
+          test -n "$DOCKERHUB_USERNAME" || { echo 'Configure the DOCKERHUB_USERNAME repository secret'; exit 1; }
+          test -n "$DOCKERHUB_IMAGE" || { echo 'Configure DOCKERHUB_IMAGE, e.g. username/elohim-backend'; exit 1; }
+
+      - name: Download image from successful CI run
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-image
+          path: image
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Load validated image
+        run: docker load --input image/backend-image.tar.gz
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Publish commit image
+        run: |
+          docker tag elohim-backend:ci "$DOCKERHUB_IMAGE:sha-$IMAGE_SHA"
+          docker push "$DOCKERHUB_IMAGE:sha-$IMAGE_SHA"
+          echo "Published: $DOCKERHUB_IMAGE:sha-$IMAGE_SHA" >> "$GITHUB_STEP_SUMMARY"
