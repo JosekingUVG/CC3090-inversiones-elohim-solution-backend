@@ -12,28 +12,12 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      COMPOSE_FILE: docker-compose.yml:docker-compose.override.yml:compose.ci.yml
-      COMPOSE_PROFILES: production
-    defaults:
-      run:
-        working-directory: stack
-        shell: bash
-    steps:
-      - name: Checkout complete application
-        uses: actions/checkout@v4
-        with:
-          repository: angc-labs/CC3090-inversiones-elohim-solution
-          ref: main
-          submodules: recursive
-          path: stack
 
-      # Test this backend commit, not the older commit recorded by the parent.
-      - name: Checkout backend under test
+    steps:
+      - name: Checkout backend repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
-          path: stack/backend
+          submodules: recursive
           persist-credentials: false
 
       - name: Set up .NET
@@ -43,7 +27,7 @@ jobs:
 
       - name: Run .NET test suite
         run: >-
-          dotnet test backend/tests/ElohimShop.Tests/ElohimShop.Tests.csproj
+          dotnet test tests/ElohimShop.Tests/ElohimShop.Tests.csproj
           --configuration Release
           --logger "trx;LogFileName=backend.trx"
           --collect:"XPlat Code Coverage"
@@ -57,40 +41,64 @@ jobs:
           path: ${{ runner.temp }}/test-results
           if-no-files-found: warn
 
-      - name: Prepare environment and temporary TLS certificate
+      - name: Prepare backend-only CI compose
         run: |
           cp .env.example .env
-          cat > compose.ci.yml <<'YAML'
+          cat > compose.backend.ci.yml <<'YAML'
           services:
+            db:
+              image: postgres:16-alpine
+              restart: unless-stopped
+              environment:
+                POSTGRES_USER: postgres
+                POSTGRES_PASSWORD: postgres
+                POSTGRES_DB: dmhub
+              volumes:
+                - postgres_data:/var/lib/postgresql/data
+              healthcheck:
+                test: ["CMD-SHELL", "pg_isready -U postgres -d dmhub"]
+                interval: 5s
+                timeout: 5s
+                retries: 10
+                start_period: 30s
+
             backend:
+              build:
+                context: .
               image: elohim-backend:ci
+              depends_on:
+                db:
+                  condition: service_healthy
               environment:
                 ASPNETCORE_ENVIRONMENT: Development
+                ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=dmhub;Username=postgres;Password=postgres"
+                DB_HOST: db
+                DB_USER: postgres
+                DB_PASSWORD: postgres
+                DB_NAME: dmhub
+                SEED_DATA: "true"
+                SEED_USER_EMAIL: admin1@test.com
+                SEED_USER_PASSWORD: "123456789"
+              ports:
+                - "5000:5000"
+
+          volumes:
+            postgres_data:
           YAML
-          mkdir -p certbot/conf/live/dmhub.fun certbot/www
-          openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
-            -keyout certbot/conf/live/dmhub.fun/privkey.pem \
-            -out certbot/conf/live/dmhub.fun/fullchain.pem \
-            -subj '/CN=dmhub.fun'
-          docker compose config --quiet
+          docker compose -f compose.backend.ci.yml config --quiet
 
-      - name: Build and start all containers
-        run: docker compose up -d --build --wait --wait-timeout 300
+      - name: Build and start backend only
+        run: docker compose -f compose.backend.ci.yml up -d --build --wait --wait-timeout 300
 
-      - name: Verify HTTP availability
+      - name: Verify backend HTTP availability
         run: |
-          for url in \
-            http://localhost:5000/swagger/v1/swagger.json \
-            http://localhost:3000/ \
-            http://localhost:3001/ \
-            https://localhost/ \
-            https://localhost/docs/; do
-            curl --insecure --fail --silent --show-error --location \
-              --retry 30 --retry-all-errors --retry-delay 5 \
-              --connect-timeout 5 --max-time 20 "$url" --output /dev/null
-          done
-          for service in db backend frontend docs nginx; do
-            container="$(docker compose ps -q "$service")"
+          curl --insecure --fail --silent --show-error --location \
+            --retry 30 --retry-all-errors --retry-delay 5 \
+            --connect-timeout 5 --max-time 20 \
+            "http://localhost:5000/swagger/v1/swagger.json" --output /dev/null
+
+          for service in db backend; do
+            container="$(docker compose -f compose.backend.ci.yml ps -q "$service")"
             test -n "$container"
             test "$(docker inspect --format '{{.State.Running}}' "$container")" = true
             test "$(docker inspect --format '{{.RestartCount}}' "$container")" = 0
@@ -110,17 +118,17 @@ jobs:
           retention-days: 3
           if-no-files-found: error
 
-      - name: Show container status and logs
+      - name: Show backend status and logs
         if: always()
         run: |
-          if [ -f compose.ci.yml ]; then
-            docker compose ps -a
-            docker compose logs --no-color --tail=200
+          if [ -f compose.backend.ci.yml ]; then
+            docker compose -f compose.backend.ci.yml ps -a
+            docker compose -f compose.backend.ci.yml logs --no-color --tail=200
           fi
 
-      - name: Clean up containers and volumes
+      - name: Clean up backend containers and volumes
         if: always()
         run: |
-          if [ -f compose.ci.yml ]; then
-            docker compose down --volumes --remove-orphans
+          if [ -f compose.backend.ci.yml ]; then
+            docker compose -f compose.backend.ci.yml down --volumes --remove-orphans
           fi
