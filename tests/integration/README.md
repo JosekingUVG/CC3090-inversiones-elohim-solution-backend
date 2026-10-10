@@ -13,6 +13,10 @@ python3 backend/tests/integration/int02.py
 
 Esperar a que la API termine su arranque antes de ejecutar el script. El script admite únicamente `localhost:5000` o `127.0.0.1:5000` porque la verificación SQL apunta a la BD local de Compose.
 
+En CI se define `INTEGRATION_COMPOSE_FILE=compose.backend.ci.yml`, porque el
+workflow crea ese archivo temporalmente. En local no se necesita la variable:
+los scripts usan el `docker-compose.yml` descubierto desde el directorio actual.
+
 ## Datos y flujo
 
 Cada ejecución registra un administrador y un cliente sintéticos en una tienda nueva identificada con `int02-...`, usando credenciales aleatorias que no se guardan. Se conserva el conjunto de prueba para inspeccionar la evidencia; los datos de otras tiendas no se modifican. Los reintentos generan conjuntos nuevos.

@@ -105,6 +105,8 @@ jobs:
           done
 
       - name: Run integration tests
+        env:
+          INTEGRATION_COMPOSE_FILE: compose.backend.ci.yml
         run: |
           tests=(tests/integration/int*.py)
           test -e "${tests[0]}"

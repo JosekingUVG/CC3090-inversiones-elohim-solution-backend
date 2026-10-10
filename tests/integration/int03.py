@@ -14,7 +14,19 @@ import urllib.request
 import uuid
 
 
-ROOT = Path(__file__).resolve().parents[3]
+COMPOSE_FILE = os.getenv("INTEGRATION_COMPOSE_FILE")
+
+
+def compose_command():
+    """Devuelve el comando Compose del entorno actual, local o CI."""
+    project_directory = Path(os.getenv("INTEGRATION_COMPOSE_DIRECTORY", Path.cwd())).resolve()
+    command = ["docker", "compose", "--project-directory", str(project_directory)]
+    if COMPOSE_FILE:
+        compose_file = Path(COMPOSE_FILE)
+        if not compose_file.is_absolute():
+            compose_file = project_directory / compose_file
+        command.extend(["-f", str(compose_file)])
+    return command
 
 
 def check(condition, message):
@@ -142,8 +154,8 @@ class Int03:
             "FROM \"Producto\" WHERE id = "
             + "'" + product_id.replace("'", "''") + "';"
         )
-        command = [
-            "docker", "compose", "--project-directory", str(ROOT), "exec", "-T", "db",
+        command = compose_command() + [
+            "exec", "-T", "db",
             "sh", "-ec", "exec psql -X -v ON_ERROR_STOP=1 -At -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\"",
         ]
         result = subprocess.run(command, input=query.encode(), stdout=subprocess.PIPE, check=True)
