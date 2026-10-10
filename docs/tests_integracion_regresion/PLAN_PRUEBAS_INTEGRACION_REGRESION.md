@@ -94,6 +94,8 @@ Comprobar que una venta confirmada actualice la BD y la lectura del catálogo.
 
 ## 8. INT-03 — Actualización visible en otra sesión
 
+Implementación e instrucciones: [INT-03 por API y PostgreSQL](../../tests/integration/README.md). El script `int03.py` se ejecuta automáticamente desde el CI del backend.
+
 ### Qué se quiere hacer
 
 Comprobar la integración sesión A → API → persistencia → sesión B, verificando RNF12 con un cambio de nombre de producto.
@@ -186,7 +188,7 @@ Detectar si un cambio del sistema hace que una sesión conserve información ant
 |---|---|---|---|---|
 | INT-01 | a74c290 + script local / 2026-10-10 | 29 tablas, 487 223 filas; restauración y hashes correctos | [Resultado local](../../tests/backups/INT01_RESULTADOS_20261010.md) | Aprobada (alcance local) |
 | INT-02 | ef49036 + script local / 2026-10-10 | Stock 10 → 7; catálogo en 6,086 ms; una venta, sin descuento duplicado | [Resultado local](../../tests/integration/INT02_RESULTADOS_20261010.md) | Aprobada (alcance local) |
-| INT-03 | | | | Pendiente |
+| INT-03 | 58c5147 + script local / 2026-10-10 | Sesión B leyó la actualización en 4,710 ms; valor persistido coincidente | [Resultado local](../../tests/integration/INT03_RESULTADOS_20261010.md) | Aprobada (alcance local) |
 | REG-01 | | | | Pendiente |
 | REG-02 | | | | Pendiente |
 | REG-03 | | | | Pendiente |

@@ -41,3 +41,13 @@ El detalle `/api/v1/productos/{id}` es el que consume `frontend/src/lib/api/prod
 `artifacts/<fecha UTC>/result.json` registra IDs, solicitudes sin tokens ni contraseñas, tiempos, observaciones y valores SQL. El script devuelve un código distinto de cero si falla y conserva el resultado parcial. La carpeta está excluida de Git.
 
 La prueba comprueba la confirmación manual de pago local; no realiza cobros ni evalúa Stripe, interfaz, cachés del navegador o ventas concurrentes. Estas últimas corresponden a REG-02. Un pase de INT-02 acredita este escenario de RNF9, no su cobertura completa.
+
+## INT-03 — Actualización visible en otra sesión
+
+```bash
+python3 backend/tests/integration/int03.py
+```
+
+INT-03 crea una tienda y un producto aislados, inicia dos sesiones autenticadas A y B del mismo administrador y verifica este flujo: B lee el nombre inicial; A lo cambia; B realiza una nueva lectura y debe obtener el cambio en un máximo de 2 segundos. También consulta PostgreSQL para comprobar que el valor leído es el persistido.
+
+La prueba no depende de Playwright ni de una caché de navegador: demuestra la sincronización entre dos contextos autenticados de la API. El CI ejecuta todos los archivos `int*.py` de esta carpeta, por lo que INT-03 se ejecuta automáticamente junto con INT-02.
