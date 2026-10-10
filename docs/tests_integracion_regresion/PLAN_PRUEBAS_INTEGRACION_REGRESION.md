@@ -4,7 +4,7 @@
 
 Definir **tres pruebas de integración y tres de regresión**, sencillas y repetibles, para RNF5 (respaldos), RNF9 (inventario) y RNF12 (sincronización de información entre sesiones).
 
-Se sigue la estructura del [plan de JMeter](../tests_Jmeter/PLAN_PRUEBAS_VOLUMEN_JMETER.md): propósito, alcance, herramientas, preparación, escenarios, criterios y evidencias. Este documento define el plan y enlaza las evidencias disponibles. INT-01 tiene una ejecución local aprobada; los demás casos permanecen pendientes.
+Se sigue la estructura del [plan de JMeter](../tests_Jmeter/PLAN_PRUEBAS_VOLUMEN_JMETER.md): propósito, alcance, herramientas, preparación, escenarios, criterios y evidencias. Este documento define el plan y enlaza las evidencias disponibles. INT-01 e INT-02 tienen una ejecución local aprobada; los demás casos permanecen pendientes.
 
 ## 2. Objetivos y selección
 
@@ -35,6 +35,7 @@ RNF12 se verifica mediante lectura entre sesiones y actualizaciones sucesivas. R
 |---|---|
 | `pg_dump`, `pg_restore` y consultas SQL | Generar/restaurar un respaldo PostgreSQL y comparar datos conocidos. Usar formato compatible con `pg_restore`. |
 | Script de respaldo/limpieza y programador de tareas | Ejecutar el proceso automático real y verificar su política de retención. Pendientes de implementar si todavía no existen. |
+| Python 3 + HTTP estándar | INT-02: ejecutar venta por API y contrastar inventario/catálogo con PostgreSQL, sin dependencias adicionales. |
 | Playwright | Enviar solicitudes a la API, iniciar dos compras concurrentes y abrir dos contextos independientes en Chromium para comprobar sincronización entre sesiones. Guardar reporte, capturas y trazas de fallos. |
 
 Se reutiliza la orientación del [plan Playwright](../tests_playwright/PLAN_PRUEBAS_PLAYWRIGHT.md). Los casos API de este documento se implementarán aparte de sus casos E2E de interfaz. JMeter no es necesario para estos seis casos: no se busca generar carga.
@@ -71,6 +72,8 @@ Comprobar la integración programador → respaldo → almacenamiento → restau
 **Evidencia:** configuración y log del programador, fecha/identificador del archivo, salida de restauración y comparación SQL. Este caso prueba recuperación; no acredita por sí solo 30 días de retención.
 
 ## 7. INT-02 — Venta e inventario del catálogo
+
+Implementación e instrucciones: [INT-02 por API y PostgreSQL](../../tests/integration/README.md). Se consulta `/api/v1/productos/{id}`, la ruta actual del detalle del catálogo atendida por `PlatformService`.
 
 ### Qué se quiere hacer
 
@@ -180,7 +183,7 @@ Detectar si un cambio del sistema hace que una sesión conserve información ant
 | Caso | Commit / fecha | Resultado obtenido | Evidencia | Estado |
 |---|---|---|---|---|
 | INT-01 | a74c290 + script local / 2026-10-10 | 29 tablas, 487 223 filas; restauración y hashes correctos | [Resultado local](../../tests/backups/INT01_RESULTADOS_20261010.md) | Aprobada (alcance local) |
-| INT-02 | | | | Pendiente |
+| INT-02 | ef49036 + script local / 2026-10-10 | Stock 10 → 7; catálogo en 6,086 ms; una venta, sin descuento duplicado | [Resultado local](../../tests/integration/INT02_RESULTADOS_20261010.md) | Aprobada (alcance local) |
 | INT-03 | | | | Pendiente |
 | REG-01 | | | | Pendiente |
 | REG-02 | | | | Pendiente |
