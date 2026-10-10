@@ -80,7 +80,12 @@ public class PlatformDbContext : DbContext
                         inv.Stock = Math.Max(0, inv.Stock - detail.Cantidad);
                     }
 
-                 
+                    // 2. Decrementar stock global
+                    var prod = await Productos.FirstOrDefaultAsync(p => p.Id == detail.ProductoId, cancellationToken);
+                    if (prod != null)
+                    {
+                        prod.StockActual = Math.Max(0, prod.StockActual - detail.Cantidad);
+                    }
                 }
             }
         }
