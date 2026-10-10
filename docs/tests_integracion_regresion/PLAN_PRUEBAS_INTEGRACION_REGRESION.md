@@ -4,7 +4,7 @@
 
 Definir **tres pruebas de integración y tres de regresión**, sencillas y repetibles, para RNF5 (respaldos), RNF9 (inventario) y RNF12 (sincronización de información entre sesiones).
 
-Se sigue la estructura del [plan de JMeter](../tests_Jmeter/PLAN_PRUEBAS_VOLUMEN_JMETER.md): propósito, alcance, herramientas, preparación, escenarios, criterios y evidencias. Este documento es un **plan pendiente de implementación y ejecución**, no un informe de resultados.
+Se sigue la estructura del [plan de JMeter](../tests_Jmeter/PLAN_PRUEBAS_VOLUMEN_JMETER.md): propósito, alcance, herramientas, preparación, escenarios, criterios y evidencias. Este documento define el plan y enlaza las evidencias disponibles. INT-01 tiene una ejecución local aprobada; los demás casos permanecen pendientes.
 
 ## 2. Objetivos y selección
 
@@ -50,6 +50,8 @@ Se reutiliza la orientación del [plan Playwright](../tests_playwright/PLAN_PRUE
 7. Ejecutar integración una vez por escenario. Para regresión, guardar una ejecución aprobada y repetir después del cambio con los mismos datos y criterios. Un fallo inicial es un defecto o funcionalidad pendiente, no una regresión demostrada.
 
 ## 6. INT-01 — Respaldo automático y restauración
+
+Implementación local e instrucciones: [INT-01 con PostgreSQL de Compose](../../tests/backups/README.md). Usa los datos existentes del volumen configurado; no requiere llenarlo previamente.
 
 ### Qué se quiere hacer
 
@@ -177,7 +179,7 @@ Detectar si un cambio del sistema hace que una sesión conserve información ant
 
 | Caso | Commit / fecha | Resultado obtenido | Evidencia | Estado |
 |---|---|---|---|---|
-| INT-01 | | | | Pendiente |
+| INT-01 | a74c290 + script local / 2026-10-10 | 29 tablas, 487 223 filas; restauración y hashes correctos | [Resultado local](../../tests/backups/INT01_RESULTADOS_20261010.md) | Aprobada (alcance local) |
 | INT-02 | | | | Pendiente |
 | INT-03 | | | | Pendiente |
 | REG-01 | | | | Pendiente |
