@@ -113,6 +113,8 @@ Comprobar la integración sesión A → API → persistencia → sesión B, veri
 
 ## 9. REG-01 — Retención de respaldos
 
+Implementación inicial junto con REG-02 y REG-03: [regression.py](../../tests/regression/regression.py). Los casos REG-02 y REG-03 quedan pendientes de configurar con credenciales y datos de prueba.
+
 ### Qué se quiere hacer
 
 Comprobar que los cambios no hagan que la limpieza elimine respaldos antes de tiempo.
