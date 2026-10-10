@@ -104,6 +104,22 @@ jobs:
             test "$(docker inspect --format '{{.RestartCount}}' "$container")" = 0
           done
 
+      - name: Run integration tests
+        run: |
+          tests=(tests/integration/int*.py)
+          test -e "${tests[0]}"
+          for test_file in "${tests[@]}"; do
+            python3 "$test_file"
+          done
+
+      - name: Upload integration test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-integration-test-evidence
+          path: tests/integration/artifacts
+          if-no-files-found: warn
+
       - name: Export validated backend image
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: docker save elohim-backend:ci | gzip > "${RUNNER_TEMP}/backend-image.tar.gz"
