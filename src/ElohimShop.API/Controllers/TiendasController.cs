@@ -97,8 +97,15 @@ public class TiendasController : V1ControllerBase
             return BadRequest(new { error = "Se requiere el header X-Tenant-ID." });
         }
 
-        var tienda = await _platformService.ActualizarConfiguracionVisualAsync(request, cancellationToken);
-        return Ok(tienda);
+        try
+        {
+            var tienda = await _platformService.ActualizarConfiguracionVisualAsync(request, cancellationToken);
+            return Ok(tienda);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     [HttpPost("configuracion/draft")]
