@@ -46,6 +46,30 @@ public class TiendasController : V1ControllerBase
         return Ok(tienda);
     }
 
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Eliminar(string id, CancellationToken cancellationToken)
+    {
+        if (!EsAdministrador())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "No tienes permisos de administrador para eliminar tiendas." });
+        }
+
+        try
+        {
+            var eliminado = await _platformService.EliminarTiendaAsync(id, cancellationToken);
+            if (!eliminado)
+            {
+                return NotFound(new { error = "Tienda no encontrada." });
+            }
+
+            return Ok(new { mensaje = "Tienda eliminada con éxito." });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+        }
+    }
+
     [HttpPut("actualizar")]
     public async Task<IActionResult> Actualizar([FromBody] ActualizarTiendaRequest request, CancellationToken cancellationToken)
     {

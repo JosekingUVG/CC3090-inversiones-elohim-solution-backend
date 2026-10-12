@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using ElohimShop.Application.Admin;
 using ElohimShop.Application.Platform;
 using ElohimShop.Domain.Platform;
 using ElohimShop.Infrastructure.Persistence;
@@ -173,6 +174,53 @@ public class PlatformService : IPlatformService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         return await MapTiendaAsync(tienda.Id, cancellationToken);
+    }
+
+    public async Task<bool> EliminarTiendaAsync(string tiendaId, CancellationToken cancellationToken)
+    {
+        var httpContext = _httpContextAccessor.HttpContext;
+        var email = httpContext?.User?.FindFirst("email")?.Value
+            ?? httpContext?.User?.FindFirst(ClaimTypes.Email)?.Value;
+        var rol = httpContext?.User?.FindFirst("rol")?.Value
+            ?? httpContext?.User?.FindFirst("rol_staff")?.Value
+            ?? httpContext?.User?.FindFirst(ClaimTypes.Role)?.Value;
+        var tipoUsuario = httpContext?.User?.FindFirst("tipo_usuario")?.Value
+            ?? httpContext?.User?.FindFirst("tipoUsuario")?.Value;
+
+        var esSuperAdmin = string.Equals(rol, "superadmin", StringComparison.OrdinalIgnoreCase) ||
+                           SuperAdminHelper.IsSuperAdminEmail(email);
+
+        var tienda = await _dbContext.Tiendas
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.Id == tiendaId, cancellationToken);
+
+        if (tienda == null)
+        {
+            return false;
+        }
+
+        if (!esSuperAdmin)
+        {
+            var esAdminGeneral = string.Equals(tipoUsuario, "administrador", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(tipoUsuario, "admin", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(rol, "administrador", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(rol, "admin", StringComparison.OrdinalIgnoreCase);
+
+            var esAdminDeTienda = !string.IsNullOrWhiteSpace(email) && await _dbContext.Users
+                .IgnoreQueryFilters()
+                .AnyAsync(u => u.Email == email && u.TiendaId == tiendaId &&
+                    (u.TipoUsuario == "administrador" || u.TipoUsuario == "admin" ||
+                     u.RolStaff == "administrador" || u.RolStaff == "admin"), cancellationToken);
+
+            if (!esAdminGeneral && !esAdminDeTienda)
+            {
+                throw new UnauthorizedAccessException("No tienes permisos de administrador para eliminar esta tienda.");
+            }
+        }
+
+        _dbContext.Tiendas.Remove(tienda);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return true;
     }
 
     public Task<bool> SlugDisponibleAsync(string slug, CancellationToken cancellationToken)

@@ -258,6 +258,7 @@ public interface IPlatformService
     Task<TiendaDto?> ObtenerTiendaPorIdOSlugAsync(string idOrSlug, CancellationToken cancellationToken);
     Task<TiendaDto> CrearTiendaAsync(CrearTiendaRequest request, CancellationToken cancellationToken);
     Task<TiendaDto> ActualizarTiendaAsync(ActualizarTiendaRequest request, CancellationToken cancellationToken);
+    Task<bool> EliminarTiendaAsync(string tiendaId, CancellationToken cancellationToken);
     Task<bool> SlugDisponibleAsync(string slug, CancellationToken cancellationToken);
     Task<TiendaDto> ActualizarConfiguracionVisualAsync(ActualizarConfiguracionVisualRequest request, CancellationToken cancellationToken);
     Task<ConfiguracionConHistorial> GuardarConfiguracionDraftAsync(GuardarConfiguracionDraftRequest request, CancellationToken cancellationToken);
