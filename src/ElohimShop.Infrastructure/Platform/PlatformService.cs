@@ -32,14 +32,23 @@ public class PlatformService : IPlatformService
     public async Task<IReadOnlyList<TiendaDto>> ListarTiendasAsync(CancellationToken cancellationToken)
     {
         var httpContext = _httpContextAccessor.HttpContext;
-        var email = httpContext?.User?.FindFirst(ClaimTypes.Email)?.Value;
-        var rol = httpContext?.User?.FindFirst("rol")?.Value ?? httpContext?.User?.FindFirst("rol_staff")?.Value;
-        var esSuperAdmin = string.Equals(rol, "superadmin", StringComparison.OrdinalIgnoreCase);
+        var email = httpContext?.User?.FindFirst("email")?.Value
+            ?? httpContext?.User?.FindFirst(ClaimTypes.Email)?.Value;
+        var rol = httpContext?.User?.FindFirst("rol")?.Value
+            ?? httpContext?.User?.FindFirst("rol_staff")?.Value
+            ?? httpContext?.User?.FindFirst(ClaimTypes.Role)?.Value;
+        var esSuperAdmin = string.Equals(rol, "superadmin", StringComparison.OrdinalIgnoreCase) ||
+                           SuperAdminHelper.IsSuperAdminEmail(email);
 
         var query = _dbContext.Tiendas.AsNoTracking();
 
-        if (!esSuperAdmin && !string.IsNullOrWhiteSpace(email))
+        if (!esSuperAdmin)
         {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return Array.Empty<TiendaDto>();
+            }
+
             var userStores = await _dbContext.Users
                 .IgnoreQueryFilters()
                 .Where(u => u.Email == email)
@@ -49,10 +58,6 @@ public class PlatformService : IPlatformService
                 .ToListAsync(cancellationToken);
 
             query = query.Where(t => userStores.Contains(t.Id));
-        }
-        else if (string.IsNullOrWhiteSpace(email))
-        {
-            return Array.Empty<TiendaDto>();
         }
 
         var tiendas = await query.ToListAsync(cancellationToken);
@@ -97,7 +102,8 @@ public class PlatformService : IPlatformService
         _dbContext.CredencialesIntegraciones.Add(new CredencialesIntegracion { TiendaId = tienda.Id });
 
         var httpContext = _httpContextAccessor.HttpContext;
-        var email = httpContext?.User?.FindFirst(ClaimTypes.Email)?.Value;
+        var email = httpContext?.User?.FindFirst("email")?.Value
+            ?? httpContext?.User?.FindFirst(ClaimTypes.Email)?.Value;
         if (!string.IsNullOrWhiteSpace(email))
         {
             var existingUser = await _dbContext.Users
