@@ -26,7 +26,9 @@ Los repositorios auxiliares deben ser accesibles para el checkout; si son privad
 se necesita configurar una credencial de lectura con acceso a ellos.
 
 Ejecuta toda la suite xUnit existente con .NET 10, exporta resultados TRX y
-cobertura, y construye y levanta PostgreSQL, backend, frontend, docs y Nginx.
+cobertura, y construye y levanta PostgreSQL y backend. Después ejecuta todos
+los scripts `tests/integration/int*.py`, que hoy incluyen `INT-02`, y publica
+su evidencia como el artefacto `backend-integration-test-evidence`.
 Usa `.env.example` y un certificado autofirmado efímero exclusivamente para CI.
 Comprueba Swagger, las páginas de frontend y docs y su acceso por Nginx;
 también verifica que ningún contenedor haya reiniciado. Siempre intenta mostrar
