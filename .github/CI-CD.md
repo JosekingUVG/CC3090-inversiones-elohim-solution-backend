@@ -18,25 +18,30 @@ credenciales en YAML ni en archivos `.env` versionados.
 
 ## CI
 
-Se ejecuta en pushes, pull requests y manualmente. Descarga el `main` del
-repositorio principal y sus submódulos de forma recursiva. Luego reemplaza el
-backend por el commit que disparó el workflow (el merge de prueba en un PR).
-Frontend y docs conservan las versiones registradas en el repositorio principal.
-Los repositorios auxiliares deben ser accesibles para el checkout; si son privados,
-se necesita configurar una credencial de lectura con acceso a ellos.
+Se ejecuta en pushes, pull requests y manualmente. Clona el repositorio del
+backend en el commit bajo prueba (el merge temporal en un PR), con checkout
+recursivo de sus propios submódulos si los hubiera. No clona el repositorio raíz
+ni los repositorios de frontend y docs.
 
-Ejecuta toda la suite xUnit existente con .NET 10, exporta resultados TRX y
-cobertura, y construye y levanta PostgreSQL y backend. Después ejecuta todos
-los scripts `tests/integration/int*.py`, que hoy incluyen `INT-02`, y publica
-su evidencia como el artefacto `backend-integration-test-evidence`.
-Usa `.env.example` y un certificado autofirmado efímero exclusivamente para CI.
-Comprueba Swagger, las páginas de frontend y docs y su acceso por Nginx;
-también verifica que ningún contenedor haya reiniciado. Siempre intenta mostrar
-logs y eliminar los contenedores y volúmenes temporales.
+Ejecuta la suite xUnit en `tests/ElohimShop.Tests/ElohimShop.Tests.csproj` con
+.NET 10 y publica resultados TRX y cobertura como `backend-test-results`.
+Copia `.env.example` y genera un Compose temporal para construir y levantar
+únicamente PostgreSQL y backend con datos de prueba. Comprueba Swagger por HTTP
+en `http://localhost:5000/swagger/v1/swagger.json` y verifica que ambos
+contenedores estén en ejecución y sin reinicios. No levanta Nginx ni configura TLS.
 
-Las pruebas existentes incluyen mocks y EF en memoria. Las comprobaciones HTTP
-son pruebas de disponibilidad, no una suite funcional completa de los flujos de
-negocio contra PostgreSQL.
+Después ejecuta todos los scripts `tests/integration/int*.py`, indicando el
+Compose temporal mediante `INTEGRATION_COMPOSE_FILE`, y publica su evidencia
+como `backend-integration-test-evidence`.
+
+En pushes a `main`, exporta la imagen validada `elohim-backend:ci` como el
+artefacto `backend-image`, con retención de tres días, para su posterior
+publicación por CD. Siempre intenta mostrar logs y eliminar los contenedores y
+volúmenes temporales.
+
+Las pruebas existentes incluyen mocks y EF en memoria. La comprobación de
+Swagger verifica disponibilidad; la cobertura funcional contra el entorno
+levantado depende de los scripts de integración ejecutados.
 
 ## CD
 

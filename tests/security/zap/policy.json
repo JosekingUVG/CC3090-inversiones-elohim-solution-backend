@@ -1,0 +1,6 @@
+{
+  "failOnRiskCodes": [3],
+  "failOnPluginIds": ["40018", "40022", "90019", "90020", "6"],
+  "profiles": ["admin", "client"],
+  "acceptedScannerExitCodes": [0, 2]
+}

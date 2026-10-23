@@ -1,0 +1,267 @@
+{
+  "profiles": {
+    "admin": [
+      {
+        "method": "GET",
+        "path": "/api/v1/tiendas",
+        "url": "/api/v1/tiendas",
+        "status": 200,
+        "assert": {
+          "contains": [
+            {
+              "id": "{tenant_id}"
+            }
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/sucursales",
+        "url": "/api/v1/sucursales",
+        "status": 200,
+        "assert": {
+          "contains": [
+            {
+              "id": "{branch_id}"
+            }
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/sucursales/{id}",
+        "url": "/api/v1/sucursales/{branch_id}",
+        "status": 200,
+        "assert": {
+          "contains": {
+            "id": "{branch_id}"
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/productos",
+        "url": "/api/v1/productos",
+        "status": 200,
+        "assert": {
+          "contains": [
+            {
+              "id": "{product_id}"
+            }
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/productos/{id}",
+        "url": "/api/v1/productos/{product_id}",
+        "status": 200,
+        "assert": {
+          "contains": {
+            "id": "{product_id}",
+            "stockTotal": 98
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/productos/categorias",
+        "url": "/api/v1/productos/categorias",
+        "status": 200,
+        "assert": {
+          "type": "list"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/inventarios/sucursal/{sucursalId}",
+        "url": "/api/v1/inventarios/sucursal/{branch_id}",
+        "status": 200,
+        "assert": {
+          "contains": [
+            {
+              "productoId": "{product_id}",
+              "stock": 98
+            }
+          ]
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/inventarios/ajuste",
+        "url": "/api/v1/inventarios/ajuste",
+        "status": 200,
+        "assert": {
+          "contains": {
+            "productoId": "{product_id}",
+            "stock": 98
+          }
+        },
+        "body": {
+          "sucursalId": "{branch_id}",
+          "productoId": "{product_id}",
+          "stock": 98
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/reservaciones/control-staff",
+        "url": "/api/v1/reservaciones/control-staff",
+        "status": 200,
+        "assert": {
+          "contains": [
+            {
+              "id": "{reservation_id}",
+              "estadoPago": "pagado"
+            }
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/reportes",
+        "url": "/api/v1/reportes",
+        "status": 200,
+        "assert": {
+          "contains": [
+            {
+              "id": "{report_id}"
+            }
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/reportes/{id}/correr",
+        "url": "/api/v1/reportes/{report_id}/correr",
+        "status": 200,
+        "assert": {
+          "contains": {
+            "rows": [
+              {
+                "zap_probe": 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/reportes/ejecutar-raw",
+        "url": "/api/v1/reportes/ejecutar-raw",
+        "status": 200,
+        "assert": {
+          "contains": {
+            "rows": [
+              {
+                "zap_probe": 1
+              }
+            ]
+          }
+        },
+        "body": {
+          "querySql": "SELECT 1 AS zap_probe"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/reportes/productos",
+        "url": "/api/v1/reportes/productos",
+        "status": 200,
+        "assert": {
+          "type": "dict"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/reportes/empleados",
+        "url": "/api/v1/reportes/empleados",
+        "status": 200,
+        "assert": {
+          "type": "dict"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/reportes/metodos-pago",
+        "url": "/api/v1/reportes/metodos-pago",
+        "status": 200,
+        "assert": {
+          "type": "dict"
+        }
+      }
+    ],
+    "client": [
+      {
+        "method": "POST",
+        "path": "/api/v1/metodos-pago/contra-entrega",
+        "url": "/api/v1/metodos-pago/contra-entrega",
+        "status": 200,
+        "assert": {
+          "contains": {
+            "idMetodoPago": "{payment_id}"
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/metodos-pago",
+        "url": "/api/v1/metodos-pago",
+        "status": 200,
+        "assert": {
+          "equals": []
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/carrito",
+        "url": "/api/v1/carrito",
+        "status": 200,
+        "assert": {
+          "contains": [
+            {
+              "id": "{item_id}",
+              "productoId": "{product_id}"
+            }
+          ]
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v1/carrito/articulos/{id}",
+        "url": "/api/v1/carrito/articulos/{item_id}",
+        "status": 200,
+        "assert": {
+          "contains": {
+            "id": "{item_id}",
+            "cantidad": 1
+          }
+        },
+        "body": {
+          "cantidad": 1
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/reservaciones/mis-compras",
+        "url": "/api/v1/reservaciones/mis-compras",
+        "status": 200,
+        "assert": {
+          "contains": [
+            {
+              "id": "{reservation_id}",
+              "estadoPago": "pagado"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "defaultExclusion": "Fuera de la selección activa inicial; algunas escrituras solo se usan al preparar datos. No se declara cobertura activa.",
+  "excludedGroups": {
+    "auth": "Registro y login comprobados en preparación, fuera de ZAP. Logout revoca sesiones; recuperación/Google requieren fixtures separados.",
+    "media": "Requiere configuración y proveedor Cloudinary de pruebas.",
+    "pagos": "Requiere proveedor Stripe de pruebas y webhook firmado.",
+    "usuarios": "Fuera del alcance solicitado."
+  }
+}

@@ -1,0 +1,32 @@
+# Entorno local descartable, distinto del backend de desarrollo en :5000.
+# Ejecutar siempre con -p zap-local; down -v al terminar.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dmhub
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dmhub"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    tmpfs:
+      - /var/lib/postgresql/data
+  backend:
+    build:
+      context: ../../..
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: Host=db;Port=5432;Database=dmhub;Username=postgres;Password=postgres
+      DB_HOST: db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: dmhub
+      SEED_DATA: "false"
+    ports:
+      - "127.0.0.1:15000:5000"
