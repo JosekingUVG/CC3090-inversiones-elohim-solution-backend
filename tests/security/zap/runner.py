@@ -83,6 +83,10 @@ def main():
                     command = ["docker", "run", "--rm", "--name", name, "--network", "host",
                                "--label", "elohim.zap.run=" + os.environ.get("ZAP_RUN_ID", name),
                                "--volume", f"{work}:/zap/wrk:rw", "--env", "PYTHONPATH=/zap/wrk",
+                               # Container and GitHub runner have different UIDs. A
+                               # container-owned __pycache__ (0755) cannot be cleaned
+                               # by the host, even though the mount itself is writable.
+                               "--env", "PYTHONDONTWRITEBYTECODE=1",
                                "--env", "JAVA_TOOL_OPTIONS=-Djava.awt.headless=true",
                                image, "zap-api-scan.py", "-P", str(proxy_port()),
                                "-t", "/zap/wrk/openapi.json", "-f", "openapi",

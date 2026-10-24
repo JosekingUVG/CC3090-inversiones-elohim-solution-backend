@@ -31,6 +31,10 @@ contenedor. Los contenedores llevan nombres únicos y se eliminan incluso ante
 error/timeout/SIGTERM. Una terminación forzosa del runner no permite garantizar
 limpieza; el entorno de CI debe ser efímero.
 
+El contenedor usa `PYTHONDONTWRITEBYTECODE=1` para no crear `__pycache__` en el
+montaje compartido. Esto evita errores de limpieza cuando el usuario de ZAP y
+el runner de GitHub tienen UID distintos; los reportes se siguen conservando.
+
 La API y PostgreSQL pertenecen al workflow/Compose, **no al script**: el llamador
 debe eliminarlos siempre. No se toca el entorno de desarrollo en el puerto 5000
 al usar el Compose de este directorio. PostgreSQL usa almacenamiento temporal.
