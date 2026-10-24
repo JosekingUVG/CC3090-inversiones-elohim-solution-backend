@@ -81,6 +81,7 @@ def main():
                         path.chmod(0o644)
                     owned.add(name)
                     command = ["docker", "run", "--rm", "--name", name, "--network", "host",
+                               "--label", "elohim.zap.run=" + os.environ.get("ZAP_RUN_ID", name),
                                "--volume", f"{work}:/zap/wrk:rw", "--env", "PYTHONPATH=/zap/wrk",
                                "--env", "JAVA_TOOL_OPTIONS=-Djava.awt.headless=true",
                                image, "zap-api-scan.py", "-P", str(proxy_port()),

@@ -2,12 +2,13 @@
 import argparse
 import json
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from common import write_json
 
 
 def evaluate(output, policy, scope):
-    errors, blocking, limitations = [], [], []
+    errors, blocking, limitations, accepted = [], [], [], []
     for profile in policy["profiles"]:
         try:
             load = lambda name: json.loads((output / f"{name}-{profile}.json").read_text())
@@ -58,12 +59,31 @@ def evaluate(output, policy, scope):
                     if risk not in (0, 1, 2, 3):
                         raise ValueError("Severidad desconocida")
                     if risk in policy["failOnRiskCodes"] or plugin in policy["failOnPluginIds"]:
-                        blocking.append({"profile": profile, "pluginId": plugin,
-                                         "riskCode": risk, "name": alert.get("name", alert.get("alert"))})
+                        finding = {"profile": profile, "pluginId": plugin, "riskCode": risk,
+                                   "name": alert.get("name", alert.get("alert"))}
+                        # ZAP groups several URLs under one alert. Match each instance:
+                        # an accepted URL must never hide another affected endpoint.
+                        instances = alert.get("instances")
+                        if not isinstance(instances, list) or not instances:
+                            blocking.append(finding)
+                            continue
+                        for instance in instances:
+                            path = urlsplit(instance.get("uri", "")).path
+                            exception = next((entry for entry in policy.get("exceptions", [])
+                                              if entry["pluginId"] == plugin
+                                              and entry["method"] == instance.get("method")
+                                              and entry["path"] == path
+                                              and entry["param"] == instance.get("param")), None)
+                            detail = {**finding, "method": instance.get("method"), "path": path,
+                                      "param": instance.get("param")}
+                            if exception:
+                                accepted.append({**detail, "reason": exception["reason"]})
+                            else:
+                                blocking.append(detail)
         except (OSError, ValueError, KeyError, TypeError) as error:
             errors.append(f"{profile}: evidencia ausente o inválida ({type(error).__name__})")
     result = {"passed": not errors and not blocking, "errors": errors, "blockingAlerts": blocking,
-              "coverageLimitations": limitations}
+              "coverageLimitations": limitations, "acceptedAlerts": accepted}
     write_json(output / "gate.json", result)
     return result
 

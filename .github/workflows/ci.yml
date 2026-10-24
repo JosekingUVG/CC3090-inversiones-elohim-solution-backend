@@ -52,7 +52,7 @@ jobs:
 
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
 
     steps:
       - name: Checkout backend repository
@@ -163,12 +163,52 @@ jobs:
           path: tests/integration/artifacts
           if-no-files-found: warn
 
+      - name: Test ZAP security gate policy
+        run: python3 -m unittest discover -s tests/security/zap -p 'test_*.py' -v
+
+      - name: Run authenticated ZAP API security gate
+        timeout-minutes: 35
+        env:
+          ZAP_BASE_URL: http://localhost:5000
+          ZAP_OUTPUT_DIR: ${{ runner.temp }}/zap-artifacts
+          ZAP_PROFILE_TIMEOUT_SECONDS: '900'
+          ZAP_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: bash tests/security/zap/run.sh
+
+      - name: Summarize ZAP security gate
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          gate = Path(os.environ['RUNNER_TEMP']) / 'zap-artifacts/gate.json'
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('### ZAP API security gate\n\n')
+              if not gate.exists():
+                  summary.write('No gate result available. ZAP did not complete or was skipped after an earlier failure.\n')
+              else:
+                  result = json.loads(gate.read_text())
+                  summary.write('Result: **' + ('PASS' if result['passed'] else 'FAIL') + '**\n\n')
+                  for key in ('errors', 'blockingAlerts', 'acceptedAlerts', 'coverageLimitations'):
+                      summary.write(f'- {key}: {len(result[key])}\n')
+                  summary.write('\nSee backend-zap-security artifacts for HTML/JSON reports and exception details.\n')
+          PY
+
+      - name: Upload ZAP reports and coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-zap-security
+          path: ${{ runner.temp }}/zap-artifacts
+          retention-days: 7
+          if-no-files-found: error
+
       - name: Export validated backend image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: docker save elohim-backend:ci | gzip > "${RUNNER_TEMP}/backend-image.tar.gz"
 
       - name: Upload validated backend image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: backend-image
@@ -176,6 +216,16 @@ jobs:
           compression-level: 0
           retention-days: 3
           if-no-files-found: error
+
+      - name: Clean up remaining ZAP containers
+        if: always()
+        env:
+          ZAP_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          containers="$(docker ps -aq --filter "label=elohim.zap.run=$ZAP_RUN_ID")"
+          if [ -n "$containers" ]; then
+            echo "$containers" | xargs -r docker rm -f
+          fi
 
       - name: Show backend status and logs
         if: always()

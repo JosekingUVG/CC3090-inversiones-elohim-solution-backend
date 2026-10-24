@@ -2,5 +2,14 @@
   "failOnRiskCodes": [3],
   "failOnPluginIds": ["40018", "40022", "90019", "90020", "6"],
   "profiles": ["admin", "client"],
-  "acceptedScannerExitCodes": [0, 2]
+  "acceptedScannerExitCodes": [0, 2],
+  "exceptions": [
+    {
+      "pluginId": "40018",
+      "method": "POST",
+      "path": "/api/v1/reportes/ejecutar-raw",
+      "param": "querySql",
+      "reason": "Excepción solicitada por el responsable del proyecto tras su revisión manual: esta operación permite consultas SQL por diseño. Se conserva el hallazgo en el reporte."
+    }
+  ]
 }

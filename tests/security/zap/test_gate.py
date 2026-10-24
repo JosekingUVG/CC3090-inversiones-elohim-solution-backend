@@ -58,6 +58,50 @@ class GateTests(unittest.TestCase):
                 write_json(self.output / "execution-admin.json", {"exitCode": code})
                 self.assertFalse(self.gate()["passed"])
 
+    def sql_alert(self, instances, plugin="40018"):
+        write_json(self.output / "report-admin.json", {"site": [{"alerts": [
+            {"riskcode": "3", "pluginid": plugin, "name": "SQL Injection", "instances": instances}]}]})
+
+    def sql_instance(self, **changes):
+        return {"uri": "http://localhost:5000/api/v1/reportes/ejecutar-raw",
+                "method": "POST", "param": "querySql", **changes}
+
+    def test_reviewed_sql_instance_is_recorded_and_does_not_block(self):
+        self.sql_alert([self.sql_instance()])
+        result = self.gate()
+        self.assertTrue(result["passed"])
+        self.assertEqual(len(result["acceptedAlerts"]), 1)
+        self.assertTrue(result["acceptedAlerts"][0]["reason"])
+
+    def test_exception_does_not_hide_other_instances_in_same_alert(self):
+        self.sql_alert([self.sql_instance(), self.sql_instance(uri="http://localhost:5000/api/v1/productos")])
+        result = self.gate()
+        self.assertFalse(result["passed"])
+        self.assertEqual(len(result["acceptedAlerts"]), 1)
+        self.assertEqual(result["blockingAlerts"][0]["path"], "/api/v1/productos")
+
+    def test_exception_requires_exact_route_method_parameter_and_rule(self):
+        for changes, plugin in (({"method": "GET"}, "40018"),
+                                ({"param": "other"}, "40018"),
+                                ({"uri": "http://localhost:5000/api/v1/reportes/ejecutar-raw/other"}, "40018"),
+                                ({}, "40022")):
+            with self.subTest(changes=changes, plugin=plugin):
+                self.sql_alert([self.sql_instance(**changes)], plugin)
+                self.assertFalse(self.gate()["passed"])
+
+    def test_accepted_alert_does_not_override_scanner_failure(self):
+        self.sql_alert([self.sql_instance()])
+        write_json(self.output / "execution-admin.json", {"exitCode": 3})
+        result = self.gate()
+        self.assertFalse(result["passed"])
+        self.assertEqual(len(result["acceptedAlerts"]), 1)
+
+    def test_missing_instance_details_cannot_use_exception(self):
+        for instances in ([], [{}]):
+            with self.subTest(instances=instances):
+                self.sql_alert(instances)
+                self.assertFalse(self.gate()["passed"])
+
     def test_missing_report_blocks(self):
         (self.output / "report-client.html").unlink()
         self.assertFalse(self.gate()["passed"])

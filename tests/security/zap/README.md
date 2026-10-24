@@ -86,6 +86,15 @@ severidad inferior. Informational/Low/Medium no listados se reportan sin bloquea
 No hay excepciones implícitas ni `continue-on-error`. El código 2 del API scan
 (warnings) solo se acepta cuando la evaluación de evidencia y hallazgos pasa.
 
+La política incluye una excepción explícita autorizada por el responsable del
+proyecto tras su comprobación manual: regla `40018`, método `POST`, ruta exacta
+`/api/v1/reportes/ejecutar-raw`, parámetro `querySql`. La alerta se sigue generando
+y permanece en HTML/JSON; el evaluador la registra en `gate.json.acceptedAlerts`
+con el motivo. No se excluye el endpoint del escaneo ni otras reglas. Si una
+misma alerta agrupa instancias en otras rutas, esas instancias siguen bloqueando.
+La excepción documenta la decisión del proyecto, no una nueva demostración
+automática de ausencia de vulnerabilidades.
+
 También falla ante error del escáner, timeout, reportes ausentes/malformados,
 preparación incompleta, baseline 401/403 o dato de negocio incorrecto, operación
 obligatoria no observada, análisis activo inconcluso o cola pasiva pendiente.
@@ -114,34 +123,24 @@ permiten repetir el procedimiento. `coverage-*.json` registra versión y reglas.
 Para actualizar la imagen, descargar `ghcr.io/zaproxy/zaproxy:stable`, obtener su
 RepoDigest con `docker image inspect` y reemplazar `image.txt` tras validar.
 
-## Integración futura en CI
+## Integración en CI
 
-Este cambio crea los scripts; **no modifica `.github/workflows/ci.yml`**. Insertar
-lo siguiente después de las pruebas funcionales y antes de exportar la imagen:
+`.github/workflows/ci.yml` ejecuta las pruebas del evaluador y el escaneo después
+de las pruebas de integración y antes de exportar la imagen. El job `validate`
+tiene 90 minutos y ZAP tiene 35 minutos (900 segundos por perfil).
 
-```yaml
-- name: Run authenticated ZAP gate
-  timeout-minutes: 35
-  env:
-    ZAP_BASE_URL: http://localhost:5000
-    ZAP_OUTPUT_DIR: ${{ runner.temp }}/zap-artifacts
-    ZAP_PROFILE_TIMEOUT_SECONDS: '900'
-  run: bash tests/security/zap/run.sh
+Se publica un resumen PASS/FAIL con cantidades de errores, hallazgos bloqueantes,
+excepciones aplicadas y limitaciones. El artefacto `backend-zap-security` incluye
+HTML/JSON, logs y cobertura, con retención de siete días y `if: always()`.
 
-- name: Upload ZAP evidence
-  if: always()
-  uses: actions/upload-artifact@v4
-  with:
-    name: backend-zap-security
-    path: ${{ runner.temp }}/zap-artifacts
-    if-no-files-found: error
-    retention-days: 7
-```
+Un fallo del control impide exportar/subir `backend-image`. El CD existente
+exige un CI exitoso. No se usa `continue-on-error`.
 
-Reservar tiempo adicional en el job para publicar evidencia y limpiar. Conservar
-`if: always()` en logs y `docker compose down --volumes --remove-orphans`.
-La exportación debe depender del éxito del control; el CD existente ya exige CI
-exitoso. No publicar `/tmp/zap-private-*` ni el directorio de trabajo de ZAP.
+La limpieza propia del runner se complementa con un paso `always()` que elimina
+solo contenedores con la etiqueta `elohim.zap.run` de la ejecución/intento actual
+(`ZAP_RUN_ID`). Se conservan los pasos `always()` de logs y eliminación del
+Compose, incluidos sus volúmenes. No publicar `/tmp/zap-private-*` ni el
+directorio privado de trabajo de ZAP.
 
 ## Pruebas del control sin Docker
 
@@ -170,11 +169,11 @@ Ambos análisis activos y pasivos terminaron y generaron HTML/JSON. Las diez
 operaciones sin mensajes activos coincidentes figuran como limitación; no se
 equiparan veinte baselines correctos con veinte operaciones atacadas.
 
-El control devolvió **FAIL**, sin errores de ejecución, por la alerta High
+Con la política original, el control devolvió **FAIL**, sin errores de ejecución, por la alerta High
 `40018`, `SQL Injection - PostgreSQL`, en `POST /api/v1/reportes/ejecutar-raw`,
 parámetro `querySql`. Necesita triage: la ruta admite SQL por diseño y el hallazgo
-automático no demuestra por sí solo un acceso indebido. No se silenció la alerta
-ni se cambió la política para hacer pasar el control.
+automático no demuestra por sí solo un acceso indebido. En esa ejecución no se aplicó una excepción. Posteriormente el responsable
+autorizó la excepción específica descrita en la política actual.
 
 Las 14 pruebas offline pasaron. Se eliminaron los contenedores ZAP, backend y
 PostgreSQL de prueba; el entorno de desarrollo existente permaneció activo.
