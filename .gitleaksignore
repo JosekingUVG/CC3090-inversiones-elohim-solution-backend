@@ -1,0 +1,8 @@
+# Hallazgos preexistentes en el historial (baseline). Gitleaks sigue detectando cualquier secreto nuevo.
+# PENDIENTE: rotar Jwt:Key y moverla a una variable de entorno; luego eliminar estas entradas.
+6f8bfadb182fa9b28175e8b1e3988077584df2e7:bruno/environments/local.bru:jwt:4
+e3193729ce020baaedba4b9a7e262d8161dd8529:bruno/environments/local.bru:jwt:4
+60de513cf81c6d042afb8187bb413d182a5017e4:src/ElohimShop.API/appsettings.json:generic-api-key:5
+60de513cf81c6d042afb8187bb413d182a5017e4:src/ElohimShop.API/appsettings.Development.json:generic-api-key:5
+4a1d0ce4996c788bfe4571fee6f87745220395ed:src/ElohimShop.API/appsettings.Development.json:generic-api-key:5
+4a1d0ce4996c788bfe4571fee6f87745220395ed:src/ElohimShop.API/appsettings.json:generic-api-key:5
